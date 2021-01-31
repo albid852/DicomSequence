@@ -9,6 +9,8 @@ Using the DcmSequence class in the DCMSequence.py file you can load in DICOM dir
  - Interpolate a volume from loaded slices
  - View these many different slices using the multi-slice viewer
 
+Dependencies: Numpy, Scipy, OpenCV, PyDicom, Matplotlib, Streamlit, PIL
+
 # Example Usage
 
     from DCMSequence import DcmSequence
