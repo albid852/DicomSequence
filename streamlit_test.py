@@ -1,16 +1,13 @@
 import streamlit as st
 import numpy as np
-import pandas as pd
 import pydicom
 from pydicom.filebase import DicomBytesIO
-import io
 from scipy import interpolate
-from DCMSequence import DcmSequence
 import cv2
-import os
 import base64
-from zipfile import ZipFile
-import gzip
+from zipfile import ZipFile, ZIP_DEFLATED
+from PIL import Image
+from io import BytesIO
 
 st.set_page_config("Pydicom Image")
 st.title("Pydicom Image")
@@ -116,7 +113,7 @@ def get_png(dcm_list, clahe=False, norm_alg=1):
 
     return images
 
-
+@st.cache(suppress_st_warning=True, show_spinner=False)
 def interpolate_volume(vol, num_slices=4, clahe=False, norm_alg=1):
     """
     Create an interpolated volume from the image stack. This will interpolate slices of
@@ -159,34 +156,45 @@ def interpolate_volume(vol, num_slices=4, clahe=False, norm_alg=1):
     return stack
 
 
-def zipup(data):
-    zipObj = ZipFile("test.zip", 'w')
-    for file in data:
-        zipObj.write()
+def get_image_download_link(vol):
+    """
+    Generates a link allowing the PIL image to be downloaded
+    in:  PIL image
+    out: href string
+    """
+    zip_buffer = BytesIO()
+    with ZipFile(zip_buffer, "a", ZIP_DEFLATED, False) as zip_file:
+        for i in range(len(vol)):
+            img_buffer = BytesIO()
+            result = Image.fromarray(vol[i])
+            result.save(img_buffer, format="PNG")
+            zip_file.writestr(f"{i}.png", img_buffer.getvalue())
+
+    result_str = base64.b64encode(zip_buffer.getvalue()).decode()
+    href = f'<a href="data:file/zip;base64,{result_str}" download="interpolated.zip">' \
+           f'Download result</a>'
+    return href
 
 
 uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
-if uploaded_file is not None:
+if len(uploaded_file) > 0:
     for file in uploaded_file:
         raw = DicomBytesIO(file.read())
         ds = pydicom.dcmread(raw)
         dcm_list.append(ds)
 
-slide = st.slider("Dicom Image", 1, len(dcm_list))
-st.image(dcm_list[slide - 1].pixel_array)  # can use css to center this
+    slide = st.slider("Dicom Image", 1, len(dcm_list))
+    st.image(dcm_list[slide - 1].pixel_array)  # can use css to center this
 
-interp_check = st.checkbox("Interpolate Volume")
-if interp_check:
-    st.header("Interpolation")
-    dcm_vol = interpolate_volume(dcm_list)
-    slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
-    st.image(dcm_vol[slide2 - 1])  # can use css to center this
-
-if st.button("Download"):
+    interp_check = st.checkbox("Interpolate Volume")
     if interp_check:
-        # x = cv2.imwrite("test.png", dcm_vol[0])
-        b64 = base64.b64encode(dcm_vol[0])
-        href = f'<a href="data:file/png;base64,{b64}" download=\'{"test"}.png\'>\
-                Click to download\
-            </a>'
-        st.sidebar.markdown(href, unsafe_allow_html=True)
+        st.header("Interpolation")
+        x = st.number_input("Number of slices between", 0, 35)
+        with st.spinner("Interpolating..."):
+            dcm_vol = interpolate_volume(dcm_list, num_slices=x)
+        st.success("Successfully Interpolated!")
+        slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
+        st.image(dcm_vol[slide2 - 1])  # can use css to center this
+        if st.button("Download"):
+            with st.spinner("Getting your link ready..."):
+                st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
