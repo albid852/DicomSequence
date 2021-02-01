@@ -2,135 +2,28 @@ import streamlit as st
 import numpy as np
 import pydicom
 from pydicom.filebase import DicomBytesIO
-from scipy import interpolate
-import cv2
 import base64
 from zipfile import ZipFile, ZIP_DEFLATED
 from PIL import Image
 from io import BytesIO
-
-st.set_page_config("Pydicom Image")
-st.title("Pydicom Image")
-
-dcm_list = []
-
-
-def convert_int_to_uint(img):
-    """
-    Conversion of int16 to uint16
-    :param img: numpy array to convert
-    :return: numpy array as type uint16
-    """
-    if img.dtype == np.int16:
-        img_min = np.min(img)
-        img += abs(img_min)
-        return img.astype(np.uint16)
-
-
-def apply_clahe(img, clip_lim=40, tile_grid_size=(8, 8)):
-    """
-    Applies CV2's clahe algorithm to an image array.
-    :param img: Image to apply clahe to
-    :param clip_lim: All bins in the color histogram above the limit are clipped
-    and distributed to the existing bins.
-    :param tile_grid_size: tile shape
-    :return: Clahe image as a numpy array. Still retains whatever dtype the img started with
-    """
-    clahe = cv2.createCLAHE(clipLimit=clip_lim, tileGridSize=tile_grid_size)
-    img = convert_int_to_uint(img)
-    clahe_img = clahe.apply(img)
-    return clahe_img
-
-
-def apply_fiji_normalization(img):
-    """
-    Applies a fiji normalization to reduce the given image to a 255 range. Looks exactly
-    the same as the original image.
-    :param img: Image to normalize
-    :return: Normalized image as an 8-bit numpy array.
-    """
-    img_min, img_max = int(np.min(img)), int(np.max(img))
-    scale = 256. / (img_max - img_min + 1)
-    x = img & 0xffff
-    x -= img_min
-    x[x < 0] = 0
-    x = x * scale + 0.5
-    x[x > 255] = 0
-    return x.astype(np.uint8)
-
-
-def apply_cr_normalization(img):
-    """
-    Applies the following normalization to reduce the image to a 0-1 range:
-    img / (abs(image mean) + 3 * (image standard deviation))
-    Then multiplies by 255 and clips the image between 0-255.
-    :param img:
-    :return: Normalized image as an 8-bit numpy array.
-    """
-    mu = np.mean(img)
-    sigma = np.std(img)
-    tmp = img / (abs(mu) + 3 * sigma)
-    tmp *= 255
-    uint8_img = np.clip(tmp, 0, 255).astype(np.uint8)
-    return uint8_img
-
-
-def get_png(dcm_list, clahe=False, norm_alg=1):
-    """
-    Get list of png images and list of file names by converting the current dicoms in the
-    collection to 8-bit using the preferred norm-alg.
-    :param clahe: whether or not to perform clahe on the images
-    :param norm_alg: which normalization algorithm to use to get the image between 0-255.
-    If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
-    normalization. norm_alg = 2 is for CR normalization.
-    :return: List of file names (not the path), list of png images
-    """
-    # use if statements for the 3 dif algorithms for normalization
-    images = []
-
-    for ds in dcm_list:
-
-        if ds.pixel_array.dtype == np.uint8:
-            images.append(ds.pixel_array)
-
-        elif ds.pixel_array.dtype == np.uint16 \
-                or ds.pixel_array.dtype == np.int16:
-            image = ds.pixel_array
-            image = convert_int_to_uint(image)
-            if clahe:
-                clip_lim = 40
-                tile_grid_size = (8, 8)
-                image = apply_clahe(image, clip_lim, tile_grid_size)
-
-            if norm_alg == 0:
-                image = np.uint8((image / np.max(image)) * 255)
-            elif norm_alg == 1:
-                image = apply_fiji_normalization(image)
-            elif norm_alg == 2:
-                image = apply_cr_normalization(image)
-
-            images.append(image)
-
-    return images
+from scipy import interpolate
+from preprocessing import get_png
 
 @st.cache(suppress_st_warning=True, show_spinner=False)
-def interpolate_volume(vol, num_slices=4, clahe=False, norm_alg=1):
+def interpolate_volume(volume: np.ndarray, num_slices: int = 4):
     """
     Create an interpolated volume from the image stack. This will interpolate slices of
     images between every consecutive pair of slices. The num_slices determines how
     many interpolated slices are between the original slices and the separation between them.
+    :param volume: array of images to interpolate between
     :param num_slices: Number of interpolated slices between the original slices
-    :param clahe: whether or not to perform clahe on the images
-    :param norm_alg: which normalization algorithm to use to get the image between 0-255.
-    If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
-    normalization. norm_alg = 2 is for CR normalization.
     :return: the entire interpolated volume
     """
-    images = get_png(vol, clahe=clahe, norm_alg=norm_alg)
-    volume = np.array(images)
-
+    if num_slices <= 0:
+        return volume
+    if len(volume.shape) != 3:
+        raise ValueError("volume must be of shape (depth, height, width)")
     depth, img_width, img_height = volume.shape
-
     # set up interpolator
     points = (np.arange(depth), np.arange(img_height), np.arange(img_width))  # (z, y, x)
     rgi = interpolate.RegularGridInterpolator(points, volume)
@@ -152,16 +45,18 @@ def interpolate_volume(vol, num_slices=4, clahe=False, norm_alg=1):
                 print("\t", i + 1)
                 stack[n * (num_slices + 1) + i + 1] = interp_slices[i]
             coords[:, 0] += 1
-
     return stack
 
 
-def get_image_download_link(vol):
+def get_image_download_link(vol: np.ndarray):
     """
-    Generates a link allowing the PIL image to be downloaded
-    in:  PIL image
-    out: href string
+    Generates a link that allows the png image or volume to be downloaded in a zip file
+    :param vol: numpy array of png images
+    :return: href string
     """
+    if len(vol.shape) == 2:
+        vol = np.expand_dims(vol, axis=0)
+
     zip_buffer = BytesIO()
     with ZipFile(zip_buffer, "a", ZIP_DEFLATED, False) as zip_file:
         for i in range(len(vol)):
@@ -176,6 +71,12 @@ def get_image_download_link(vol):
     return href
 
 
+st.set_page_config("Pydicom Image")
+st.title("Pydicom Image")
+
+dcm_list = []
+img_list = []
+
 uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
 if len(uploaded_file) > 0:
     for file in uploaded_file:
@@ -183,18 +84,24 @@ if len(uploaded_file) > 0:
         ds = pydicom.dcmread(raw)
         dcm_list.append(ds)
 
+    img_list = get_png(dcm_list)
+
     slide = st.slider("Dicom Image", 1, len(dcm_list))
-    st.image(dcm_list[slide - 1].pixel_array)  # can use css to center this
+    st.image(img_list[slide - 1])  # can use css to center this
 
     interp_check = st.checkbox("Interpolate Volume")
     if interp_check:
         st.header("Interpolation")
-        x = st.number_input("Number of slices between", 0, 35)
+        n = st.number_input("Number of slices between", 0, 25)
+
         with st.spinner("Interpolating..."):
-            dcm_vol = interpolate_volume(dcm_list, num_slices=x)
+            dcm_vol = interpolate_volume(np.array(img_list), num_slices=n)
         st.success("Successfully Interpolated!")
+
         slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
         st.image(dcm_vol[slide2 - 1])  # can use css to center this
+
         if st.button("Download"):
             with st.spinner("Getting your link ready..."):
                 st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
+            st.success("Click the link to download your images!")
