@@ -93,7 +93,7 @@ dcm_list = []
 img_list = []
 
 uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
-if uploaded_file is not None:
+if len(uploaded_file) > 0:
     for file in uploaded_file:
         dcm_path = DicomBytesIO(file.read())
         ds = pydicom.dcmread(dcm_path)
