@@ -4,173 +4,42 @@ import pydicom
 import glob
 import cv2
 import matplotlib.pyplot as plt
-from scipy import interpolate
 from typing import Union, Tuple
+from preprocessing import apply_clahe, apply_fiji_normalization, \
+    apply_cr_normalization, convert_int_to_uint, interpolate_volume, get_png
+from PlotDCM import plot_comparisons, multi_slice_viewer
 
-# SLICE VIEWER
-def multi_slice_viewer(volume: np.ndarray):
+def _get_new_ds(ds: pydicom.dataset.Dataset, name: str):
     """
-    Go slice-by-slice through a sequence of images stacked as a volume. Recommended to
-    use for viewing the output of DcmSequence.interpolate_volume()
-    :param volume: Stack of images
-    :return: None
+    Create a new dicom header. Creates a new dataset object and sets all existing
+    fields in ds.
+    :param ds: old dataset to base this new one off of
+    :param name: name for this file
+    :return: The new dicom dataset object with all header information. No pixel data.
     """
-    def process_key(event):
-        f = event.canvas.figure
-        a = f.axes[0]
-        if event.key == 'left':
-            previous_slice(a)
-        elif event.key == 'right':
-            next_slice(a)
-        a.set_title(str(a.index))
-        f.canvas.draw()
+    file_meta = ds.file_meta
 
-    def previous_slice(a):
-        vol = a.volume
-        a.index = (a.index - 1) % vol.shape[0]  # wrap around using %
-        a.images[0].set_array(vol[a.index])
+    new_ds = pydicom.dataset.FileDataset(name, {}, file_meta=file_meta,
+                                         preamble=b"\0" * 128, is_implicit_VR=ds.is_implicit_VR,
+                                         is_little_endian=ds.is_little_endian)
 
-    def next_slice(a):
-        vol = a.volume
-        a.index = (a.index + 1) % vol.shape[0]
-        a.images[0].set_array(vol[a.index])
+    a = [attr for attr in dir(ds) if not attr.startswith('__') and not callable(getattr(ds, attr))]
 
-    fig, ax = plt.subplots()
-    ax.volume = volume
-    ax.index = 0
-    ax.set_title(str(ax.index))
-    ax.imshow(volume[ax.index], cmap='gray')
-    print("Use the right arrow key to go to the next slice")
-    print("Use the left arrow key to go to the previous slice")
-    fig.canvas.mpl_connect('key_press_event', process_key)
+    for attr in a:
+        if attr in ['_character_set', 'is_original_encoding', 'pixel_array',
+                    'BitsAllocated', 'BitsStored', 'HighBit', 'PixelRepresentation',
+                    'PixelData']:
+            continue
+        else:
+            new_ds.__setattr__(attr, ds.__getattr__(attr))
 
+    # fix bits
+    new_ds.BitsAllocated = 8
+    new_ds.BitsStored = 8
+    new_ds.HighBit = 7
+    new_ds.PixelRepresentation = 0
 
-
-# #---------------------------------------------------------------------------------# #
-# #---------------------------------------------------------------------------------# #
-# IMAGE PROCESSING FUNCTIONS
-
-def convert_int_to_uint(img: np.ndarray):
-    """
-    Conversion of int16 to uint16
-    :param img: numpy array to convert
-    :return: numpy array as type uint16
-    """
-    if img.dtype == np.int16:
-        img_min = np.min(img)
-        img += abs(img_min)
-        return img.astype(np.uint16)
-
-
-def apply_clahe(img: np.ndarray, clip_lim: int = 40, tile_grid_size: Tuple[int, int] = (8, 8)):
-    """
-    Applies CV2's clahe algorithm to an image array.
-    :param img: Image to apply clahe to
-    :param clip_lim: All bins in the color histogram above the limit are clipped
-    and distributed to the existing bins.
-    :param tile_grid_size: tile shape
-    :return: Clahe image as a numpy array. Still retains whatever dtype the img started with
-    """
-    clahe = cv2.createCLAHE(clipLimit=clip_lim, tileGridSize=tile_grid_size)
-    img = convert_int_to_uint(img)
-    clahe_img = clahe.apply(img)
-    return clahe_img
-
-
-def apply_fiji_normalization(img: np.ndarray):
-    """
-    Applies a fiji normalization to reduce the given image to a 255 range. Looks exactly
-    the same as the original image.
-    :param img: Image to normalize
-    :return: Normalized image as an 8-bit numpy array.
-    """
-    img_min, img_max = int(np.min(img)), int(np.max(img))
-    scale = 256. / (img_max - img_min + 1)
-    x = img & 0xffff
-    x -= img_min
-    x[x < 0] = 0
-    x = x * scale + 0.5
-    x[x > 255] = 0
-    return x.astype(np.uint8)
-
-
-def apply_cr_normalization(img: np.ndarray):
-    """
-    Applies the following normalization to reduce the image to a 0-1 range:
-    img / (abs(image mean) + 3 * (image standard deviation))
-    Then multiplies by 255 and clips the image between 0-255.
-    :param img:
-    :return: Normalized image as an 8-bit numpy array.
-    """
-    mu = np.mean(img)
-    sigma = np.std(img)
-    tmp = img / (abs(mu) + 3 * sigma)
-    tmp *= 255
-    uint8_img = np.clip(tmp, 0, 255).astype(np.uint8)
-    return uint8_img
-
-
-# #---------------------------------------------------------------------------------# #
-# #---------------------------------------------------------------------------------# #
-# PLOTTING PROCESSING COMPARISONS
-
-def plot_comparisons(original: np.ndarray, cr: Union[np.ndarray, None] = None,
-                     fiji: Union[np.ndarray, None] = None, clahe: Union[np.ndarray, None] = None,
-                     name: str = "UNNAMED"):
-    """
-    Visualization of the different image processing algorithms in a 2x2 grid using
-    matplotlib.
-    :param original: original image
-    :param cr: cr processed version of the image
-    :param fiji: fiji processed version of the image
-    :param clahe: clahe processed version of the image
-    :param name: Name of the image. Default is UNNAMED
-    :return: plotted figure
-    """
-    fig = plt.figure()
-    plt.axis('off')
-    plt.tick_params(axis='both')
-    ax1 = fig.add_subplot(221)
-    ax2 = fig.add_subplot(222)
-    ax3 = fig.add_subplot(223)
-    ax4 = fig.add_subplot(224)
-
-    fig.suptitle(name, fontsize=16)
-    ax1.title.set_text('Original')
-    ax2.title.set_text('CR')
-    ax3.title.set_text('FIJI')
-    ax4.title.set_text('CLAHE')
-
-    ax1.get_xaxis().set_visible(False)
-    ax1.get_yaxis().set_visible(False)
-
-    ax2.get_xaxis().set_visible(False)
-    ax2.get_yaxis().set_visible(False)
-
-    ax3.get_xaxis().set_visible(False)
-    ax3.get_yaxis().set_visible(False)
-
-    ax4.get_xaxis().set_visible(False)
-    ax4.get_yaxis().set_visible(False)
-
-    if cr is None:
-        cr = apply_cr_normalization(original)
-    if clahe is None:
-        clahe = apply_clahe(original)
-    if fiji is None:
-        fiji = apply_fiji_normalization(original)
-
-    ax1.imshow(original, cmap='gray')
-    ax2.imshow(cr, cmap='gray')
-    ax3.imshow(fiji, cmap='gray')
-    ax4.imshow(clahe, cmap='gray')
-
-    plt.show()
-    return fig
-
-
-# #---------------------------------------------------------------------------------# #
-# #---------------------------------------------------------------------------------# #
+    return new_ds
 
 
 class DcmSequence:
@@ -280,11 +149,11 @@ class DcmSequence:
 
     def plot_norms(self, start: int = 0, end: Union[int, None] = None):
         """
-        View the dicom images in the collection from start to end indices. Press enter
-        to view next image.
+        View the comparisons of preprocessing algorithms of dicom images in the collection
+        from start to end indices. Press q to view next image.
         :param start: Which index to start at in the collection.
-        :param end: Which index to stop at in the collection (exclusive). Leave empty to view to the
-        end.
+        :param end: Which index to stop at in the collection (exclusive). Value of None will plot
+        every image.
         :return: None
         """
 
@@ -322,8 +191,23 @@ class DcmSequence:
                 print('Press q to close this plot and view next image')
                 plt.waitforbuttonpress()
 
-        else:
-            raise ValueError('end must be None or int')
+    def volshow(self, start: int = 0, end: Union[int, None] = None):
+        """
+        View the dicom images in the collection from start to end indices. Press left and
+        right arrow keys to scroll through.
+        :param start: Which index to start at in the collection.
+        :param end: Which index to stop at in the collection (exclusive). Value of None
+        will plot every image.
+        :return: None
+        """
+
+        if end is None:
+            vol = get_png(self.collection[start:])
+            multi_slice_viewer(vol)
+
+        elif isinstance(end, int):
+            vol = get_png(self.collection[start:end])
+            multi_slice_viewer(vol)
 
     def interpolate_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1):
         """
@@ -337,33 +221,8 @@ class DcmSequence:
         normalization. norm_alg = 2 is for CR normalization.
         :return: the entire interpolated volume
         """
-        _, images = self.get_png(clahe=clahe, norm_alg=norm_alg)
-        volume = np.array(images)
-
-        depth, img_width, img_height = volume.shape
-
-        # set up interpolator
-        points = (np.arange(depth), np.arange(img_height), np.arange(img_width))  # (z, y, x)
-        rgi = interpolate.RegularGridInterpolator(points, volume)
-
-        # get slices with separation of 1/(num_slices + 1)
-        g = np.mgrid[1:num_slices + 1, :img_height, :img_width]
-        coords = np.vstack(map(np.ravel, g)).transpose().astype(np.float16)
-        coords[:, 0] *= 1 / (num_slices + 1)
-
-        stack = np.zeros((depth + num_slices * (depth - 1), img_height, img_width), dtype=np.uint8)
-
-        # visualize whole volume as slices
-        for n in range(depth):
-            stack[n * (num_slices + 1)] = volume[n]
-            print("SLICE NUMBER:", n+1)
-            if n < depth - 1:
-                interp_slices = rgi(coords).reshape((num_slices, img_height, img_width)).astype(np.uint8)
-                for i in range(num_slices):
-                    print("\t", i+1)
-                    stack[n * (num_slices + 1) + i + 1] = interp_slices[i]
-                coords[:, 0] += 1
-
+        images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
+        stack = interpolate_volume(images, num_slices=num_slices)
         return stack
 
     def get_png(self, clahe: bool = False, norm_alg: int = 1):
@@ -378,32 +237,10 @@ class DcmSequence:
         """
         # use if statements for the 3 dif algorithms for normalization
         png_names = []
-        images = []
-
-        for i, path in enumerate(self.dcm_files):
+        for path in self.dcm_files:
             png_names.append(os.path.splitext(os.path.basename(path))[0] + '.png')
 
-            if self.collection[i].pixel_array.dtype == np.uint8:
-                images.append(self.collection[i].pixel_array)
-
-            elif self.collection[i].pixel_array.dtype == np.uint16 \
-                    or self.collection[i].pixel_array.dtype == np.int16:
-                image = self.collection[i].pixel_array
-                image = convert_int_to_uint(image)
-                if clahe:
-                    clip_lim = 40
-                    tile_grid_size = (8, 8)
-                    image = apply_clahe(image, clip_lim, tile_grid_size)
-
-                if norm_alg == 0:
-                    image = np.uint8((image / np.max(image)) * 255)
-                elif norm_alg == 1:
-                    image = apply_fiji_normalization(image)
-                elif norm_alg == 2:
-                    image = apply_cr_normalization(image)
-
-                images.append(image)
-
+        images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
         return png_names, images
 
     def convert_to_8bit(self, clahe: bool = False, norm_alg: int = 1):
@@ -420,7 +257,7 @@ class DcmSequence:
 
             if ds.pixel_array.dtype == np.uint16 or ds.pixel_array.dtype == np.int16:
                 name = os.path.basename(path)
-                new_ds = self.get_new_ds(ds, name)
+                new_ds = _get_new_ds(ds, name)
                 image = ds.pixel_array
                 image = convert_int_to_uint(image)
                 if clahe:
@@ -438,36 +275,3 @@ class DcmSequence:
                 new_ds.PixelData = image.tobytes()
 
                 self.collection[i] = new_ds
-
-    @staticmethod
-    def get_new_ds(ds: pydicom.dataset.Dataset, name: str):
-        """
-        Create a new dicom header. Creates a new dataset object and sets all existing
-        fields in ds.
-        :param ds: old dataset to base this new one off of
-        :param name: name for this file
-        :return: The new dicom dataset object with all header information. No pixel data.
-        """
-        file_meta = ds.file_meta
-
-        new_ds = pydicom.dataset.FileDataset(name, {}, file_meta=file_meta,
-                                             preamble=b"\0" * 128, is_implicit_VR=ds.is_implicit_VR,
-                                             is_little_endian=ds.is_little_endian)
-
-        a = [attr for attr in dir(ds) if not attr.startswith('__') and not callable(getattr(ds, attr))]
-
-        for attr in a:
-            if attr in ['_character_set', 'is_original_encoding', 'pixel_array',
-                        'BitsAllocated', 'BitsStored', 'HighBit', 'PixelRepresentation',
-                        'PixelData']:
-                continue
-            else:
-                new_ds.__setattr__(attr, ds.__getattr__(attr))
-
-        # fix bits
-        new_ds.BitsAllocated = 8
-        new_ds.BitsStored = 8
-        new_ds.HighBit = 7
-        new_ds.PixelRepresentation = 0
-
-        return new_ds
