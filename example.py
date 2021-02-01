@@ -9,6 +9,7 @@ path = "../dicom-examples/series-000006/"
 dcms.load_dcm(path)
 
 
+
 # REMOVING DICOMS
 # remove some dicoms that we do not want either by specifying the dicom name, or index
 dcms.remove_dcm(idx=0)
@@ -20,10 +21,12 @@ dcms.remove_dcm(name=dicom_name)
 for i in range(3):
     dcms.remove_dcm(idx=0)
 
+    
 
 # RESIZING DICOMS
 # can resize all the dicoms to any shape by specifying a tuple as a dimension
 dcms.resize((256, 256))
+
 
 
 # GETTING PNG IMAGES
@@ -35,10 +38,17 @@ clahe_names, clahe_images = dcms.get_png(clahe=True, norm_alg=0,
                                          clip_lim=40, tile_grid_size=(8, 8))  # CLAHE normalization
 
 
+
 # VISUALIZE NORMALIZATIONS
 # before making these transformations, you can view comparisons between the images using matplotlib
 # for as many of the images as you want. Press q to close the current plot and open the next one
-dcms.imshow(start=1, end=3)
+dcms.plot_norms(start=1, end=3)
+
+
+
+# VISUALIZE ALL DICOMS
+# press left and right arrow keys to scroll through
+dcms.volshow(start=1, end=3)
 
 
 
