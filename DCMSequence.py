@@ -4,7 +4,7 @@ import pydicom
 import glob
 import cv2
 import matplotlib.pyplot as plt
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 from preprocessing import apply_clahe, apply_fiji_normalization, \
     apply_cr_normalization, convert_int_to_uint, interpolate_volume, get_png
 from PlotDCM import plot_comparisons, multi_slice_viewer
@@ -45,31 +45,25 @@ def _get_new_ds(ds: pydicom.dataset.Dataset, name: str):
 class DcmSequence:
 
     def __init__(self):
-        """
-        Can either load in dicoms and masks with their respective load functions or
-        feed them to the constructor in lists. If the length of the image list is not equal
-        to the length of the filename list then the difference is made up by appending None
-        to the images or appending a number string to the files.
-        """
-
         self.dcm_files = []
         self.collection = []
         self.mask_files = []
         self.masks = []
 
-    def load_dcm(self, src: str):
+    def load_dcm(self, src: str) -> None:
         """
         Add a dicom to the collection
         :param src: Source directory to read the dicoms in from.
         :return: None
         """
+
         for file in sorted(glob.glob(os.path.normpath(src + "/*.dcm"))):
             if file not in self.dcm_files:
                 ds = pydicom.dcmread(file)
                 self.collection.append(ds)
                 self.dcm_files.append(file)
 
-    def save_dcm(self, dest: str):
+    def save_dcm(self, dest: str) -> None:
         """
         Save the dicom to the destination folder.
         :param dest: destination folder
@@ -80,7 +74,7 @@ class DcmSequence:
             filename = os.path.basename(path)
             self.collection[i].save_as(os.path.join(dest, filename))
 
-    def load_mask(self, src: str):
+    def load_mask(self, src: str) -> None:
         """
         Add a mask to the masks
         :param src: Source directory to read the masks in from.
@@ -92,7 +86,7 @@ class DcmSequence:
                 self.masks.append(img)
                 self.mask_files.append(file)
 
-    def save_mask(self, dest: str):
+    def save_mask(self, dest: str) -> None:
         """
         Save the masks to the destination folder.
         :param dest: destination folder
@@ -103,7 +97,26 @@ class DcmSequence:
             filename = os.path.basename(path)
             self.collection[i].save_as(os.path.join(dest, filename))
 
-    def remove_dcm(self, **kwargs):
+
+    def sort(self, key: int = 1) -> None:
+        """
+        Sort the dicoms based on their names in dcm_files.
+        :param key: whether to sort in ascending or descending order.
+                    1 is ascending. -1 is descending.
+        :return: None
+        """
+        zipped = zip(self.dcm_files, self.collection)
+        if key == 1:
+            x = sorted(zipped)
+        elif key == -1:
+            x = sorted(zipped, reverse=True)
+        else:
+            raise ValueError("key must be 1 or -1")
+        self.dcm_files = [d for d, c in x]
+        self.collection = [c for d, c in x]
+
+
+    def remove_dcm(self, **kwargs) -> None:
         """
         Remove a dicom and path from the collection.
         :param kwargs: Expecting to receive name or idx of file to remove
@@ -127,7 +140,7 @@ class DcmSequence:
                 self.dcm_files.remove(self.dcm_files[idx])
                 self.collection.remove(self.collection[idx])
 
-    def resize(self, dim: Tuple[int, int]):
+    def resize(self, dim: Tuple[int, int]) -> None:
         """
         Resize all dicoms and masks to the same dimension.
         :param dim: desired dimension of images (rows, columns)
@@ -147,7 +160,7 @@ class DcmSequence:
             img = cv2.resize(img, dim)
             self.masks[i] = img
 
-    def plot_norms(self, start: int = 0, end: Union[int, None] = None):
+    def plot_norms(self, start: int = 0, end: Union[int, None] = None) -> None:
         """
         View the comparisons of preprocessing algorithms of dicom images in the collection
         from start to end indices. Press q to view next image.
@@ -191,7 +204,7 @@ class DcmSequence:
                 print('Press q to close this plot and view next image')
                 plt.waitforbuttonpress()
 
-    def volshow(self, start: int = 0, end: Union[int, None] = None):
+    def volshow(self, start: int = 0, end: Union[int, None] = None) -> None:
         """
         View the dicom images in the collection from start to end indices. Press left and
         right arrow keys to scroll through.
@@ -209,7 +222,7 @@ class DcmSequence:
             vol = get_png(self.collection[start:end])
             multi_slice_viewer(vol)
 
-    def interpolate_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1):
+    def interpolate_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
         images between every consecutive pair of slices. The num_slices determines how
@@ -225,7 +238,7 @@ class DcmSequence:
         stack = interpolate_volume(images, num_slices=num_slices)
         return stack
 
-    def get_png(self, clahe: bool = False, norm_alg: int = 1):
+    def get_png(self, clahe: bool = False, norm_alg: int = 1) -> (List[str], List[np.ndarray]):
         """
         Get list of png images and list of file names by converting the current dicoms in the
         collection to 8-bit using the preferred norm-alg.
@@ -243,7 +256,7 @@ class DcmSequence:
         images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
         return png_names, images
 
-    def convert_to_8bit(self, clahe: bool = False, norm_alg: int = 1):
+    def convert_to_8bit(self, clahe: bool = False, norm_alg: int = 1) -> None:
         """
         Convert 16-bit dicoms to 8-bit dicoms.
         :clahe: whether or not to use the CLAHE algorithm on the image beforehand
