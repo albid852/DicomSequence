@@ -102,8 +102,8 @@ if len(uploaded_file) > 0:
                                         format_func=lambda x: display[x])
 
         if hw_check:
-            height_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
-            width_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
+            height_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
+            width_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
             img_list = resize(img_list, (height_slide, width_slide))
         else:
             size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
