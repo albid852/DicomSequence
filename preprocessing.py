@@ -2,10 +2,11 @@ import numpy as np
 import pydicom
 import cv2
 from scipy import interpolate
-# from typing import Tuple, List
+from typing import Tuple, List
+from DCMSequence import _get_new_ds
 
 # CONVERT INT TO UINT
-def convert_int_to_uint(img: np.ndarray):
+def convert_int_to_uint(img: np.ndarray) -> np.ndarray:
     """
     Conversion of int16 to uint16
     :param img: numpy array to convert
@@ -18,7 +19,7 @@ def convert_int_to_uint(img: np.ndarray):
 
 
 # PREPROCESSING IMAGES
-def apply_clahe(img: np.ndarray, clip_lim: int = 40, tile_grid_size=(8, 8)):
+def apply_clahe(img: np.ndarray, clip_lim: int = 40, tile_grid_size=(8, 8)) -> np.ndarray:
     """
     Applies CV2's clahe algorithm to an image array.
     :param img: Image to apply clahe to
@@ -33,7 +34,7 @@ def apply_clahe(img: np.ndarray, clip_lim: int = 40, tile_grid_size=(8, 8)):
     return clahe_img
 
 
-def apply_fiji_normalization(img: np.ndarray):
+def apply_fiji_normalization(img: np.ndarray) -> np.ndarray:
     """
     Applies a fiji normalization to reduce the given image to a 255 range. Looks exactly
     the same as the original image.
@@ -50,7 +51,7 @@ def apply_fiji_normalization(img: np.ndarray):
     return x.astype(np.uint8)
 
 
-def apply_cr_normalization(img: np.ndarray):
+def apply_cr_normalization(img: np.ndarray) -> np.ndarray:
     """
     Applies the following normalization to reduce the image to a 0-1 range:
     img / (abs(image mean) + 3 * (image standard deviation))
@@ -66,8 +67,14 @@ def apply_cr_normalization(img: np.ndarray):
     return uint8_img
 
 
+# RESIZE PNG
+def resize(img_list: List[np.ndarray], dsize: Tuple[int, int]) -> None:
+    for i in range(len(img_list)):
+        img_list[i] = cv2.resize(img_list[i], dsize)
+
+
 # GET PNG LIST FROM DICOMS
-def get_png(dcm_list, clahe: bool = False, norm_alg: int = 1):
+def get_png(dcm_list: List[pydicom.Dataset], clahe: bool = False, norm_alg: int = 1) -> List[np.ndarray]:
     """
     Get list of png images and list of file names by converting the current dicoms in the
     collection to 8-bit using the preferred norm-alg.
@@ -109,7 +116,7 @@ def get_png(dcm_list, clahe: bool = False, norm_alg: int = 1):
 
 
 # GET INTERPOLATED IMAGES FROM NUMPY ARRAYS
-def interpolate_volume(volume: np.ndarray, num_slices: int = 4):
+def interpolate_volume(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
     """
     Create an interpolated volume from the image stack. This will interpolate slices of
     images between every consecutive pair of slices. The num_slices determines how
@@ -143,3 +150,41 @@ def interpolate_volume(volume: np.ndarray, num_slices: int = 4):
                 stack[n * (num_slices + 1) + i + 1] = interp_slices[i]
             coords[:, 0] += 1
     return stack
+
+
+# CONVERT INT16 TO 8BIT
+def convert_to_8bit(dcm_list: List[pydicom.Dataset], clahe: bool = False, norm_alg: int = 1) -> None:
+    """
+    Convert 16-bit dicoms to 8-bit dicoms.
+    :dcm_list: list of dicoms to convert
+    :clahe: whether or not to use the CLAHE algorithm on the image beforehand
+    :norm_alg: which normalization algorithm to use to get the image between 0-255.
+    If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
+    normalization. norm_alg = 2 is for CR normalization.
+    :return: None
+    """
+    for i, ds in enumerate(dcm_list):
+        if ds.pixel_array.dtype == np.uint16 or ds.pixel_array.dtype == np.int16:
+            new_ds = _get_new_ds(ds, str(i))
+            image = ds.pixel_array
+            image = convert_int_to_uint(image)
+            if clahe:
+                clip_lim = 40
+                tile_grid_size = (8, 8)
+                image = apply_clahe(image, clip_lim, tile_grid_size)
+
+            if norm_alg == 0:
+                image = np.uint8((image / np.max(image)) * 255)
+            elif norm_alg == 1:
+                image = apply_fiji_normalization(image)
+            elif norm_alg == 2:
+                image = apply_cr_normalization(image)
+
+            new_ds.PixelData = image.tobytes()
+
+            dcm_list[i] = new_ds
+
+
+
+
+
