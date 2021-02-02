@@ -7,7 +7,8 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from PIL import Image
 from io import BytesIO
 from scipy import interpolate
-from preprocessing import get_png, resize, convert_to_8bit
+from preprocessing import get_png, resize
+    # convert_to_8bit
 
 
 @st.cache(suppress_st_warning=True, show_spinner=False)
