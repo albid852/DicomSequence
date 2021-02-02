@@ -106,8 +106,11 @@ if len(uploaded_file) > 0:
         if hw_check:
             height_slide = st.slider("Set Height", 1, 512, value=img_list[0].shape[0])
             width_slide = st.slider("Set Width", 1, 512, value=img_list[0].shape[1])
+            resize(img_list, (height_slide, width_slide))
         else:
             size_slide = st.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
+            resize(img_list, (size_slide, size_slide))
+
 
         interp_check = st.checkbox("Interpolate Volume")
         if interp_check:
