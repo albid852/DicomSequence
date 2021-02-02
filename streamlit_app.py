@@ -73,9 +73,6 @@ def get_image_download_link(vol: np.ndarray) -> str:
     return href
 
 
-def clear_all() -> None:
-    pass
-
 def plot_norms(img: np.ndarray) -> None:
     pass
 
