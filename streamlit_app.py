@@ -7,7 +7,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from PIL import Image
 from io import BytesIO
 from scipy import interpolate
-from preprocessing import get_png
+from preprocessing import get_png, resize, convert_to_8bit
 
 
 @st.cache(suppress_st_warning=True, show_spinner=False)
@@ -72,12 +72,6 @@ def get_image_download_link(vol: np.ndarray) -> str:
     return href
 
 
-def resize(img: np.ndarray) -> np.ndarray:
-    pass
-
-def convert_to_8bit(img: np.ndarray) -> np.ndarray:
-    pass
-
 def clear_all() -> None:
     pass
 
@@ -100,6 +94,9 @@ if len(uploaded_file) > 0:
         dcm_list.append(ds)
 
     img_list = get_png(dcm_list)
+
+    if st.button("Clear All"):
+        uploaded_file = []
 
     if len(img_list) > 1:
         slide = st.slider("Dicom Image", 1, len(img_list))
