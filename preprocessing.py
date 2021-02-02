@@ -3,7 +3,7 @@ import pydicom
 import cv2
 from scipy import interpolate
 from typing import Tuple, List
-from DCMSequence import _get_new_ds
+# from DCMSequence import _get_new_ds
 
 # CONVERT INT TO UINT
 def convert_int_to_uint(img: np.ndarray) -> np.ndarray:
@@ -153,36 +153,36 @@ def interpolate_volume(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
 
 
 # CONVERT INT16 TO 8BIT
-def convert_to_8bit(dcm_list: List[pydicom.Dataset], clahe: bool = False, norm_alg: int = 1) -> None:
-    """
-    Convert 16-bit dicoms to 8-bit dicoms.
-    :dcm_list: list of dicoms to convert
-    :clahe: whether or not to use the CLAHE algorithm on the image beforehand
-    :norm_alg: which normalization algorithm to use to get the image between 0-255.
-    If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
-    normalization. norm_alg = 2 is for CR normalization.
-    :return: None
-    """
-    for i, ds in enumerate(dcm_list):
-        if ds.pixel_array.dtype == np.uint16 or ds.pixel_array.dtype == np.int16:
-            new_ds = _get_new_ds(ds, str(i))
-            image = ds.pixel_array
-            image = convert_int_to_uint(image)
-            if clahe:
-                clip_lim = 40
-                tile_grid_size = (8, 8)
-                image = apply_clahe(image, clip_lim, tile_grid_size)
-
-            if norm_alg == 0:
-                image = np.uint8((image / np.max(image)) * 255)
-            elif norm_alg == 1:
-                image = apply_fiji_normalization(image)
-            elif norm_alg == 2:
-                image = apply_cr_normalization(image)
-
-            new_ds.PixelData = image.tobytes()
-
-            dcm_list[i] = new_ds
+# def convert_to_8bit(dcm_list: List[pydicom.Dataset], clahe: bool = False, norm_alg: int = 1) -> None:
+#     """
+#     Convert 16-bit dicoms to 8-bit dicoms.
+#     :dcm_list: list of dicoms to convert
+#     :clahe: whether or not to use the CLAHE algorithm on the image beforehand
+#     :norm_alg: which normalization algorithm to use to get the image between 0-255.
+#     If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
+#     normalization. norm_alg = 2 is for CR normalization.
+#     :return: None
+#     """
+#     for i, ds in enumerate(dcm_list):
+#         if ds.pixel_array.dtype == np.uint16 or ds.pixel_array.dtype == np.int16:
+#             new_ds = _get_new_ds(ds, str(i))
+#             image = ds.pixel_array
+#             image = convert_int_to_uint(image)
+#             if clahe:
+#                 clip_lim = 40
+#                 tile_grid_size = (8, 8)
+#                 image = apply_clahe(image, clip_lim, tile_grid_size)
+#
+#             if norm_alg == 0:
+#                 image = np.uint8((image / np.max(image)) * 255)
+#             elif norm_alg == 1:
+#                 image = apply_fiji_normalization(image)
+#             elif norm_alg == 2:
+#                 image = apply_cr_normalization(image)
+#
+#             new_ds.PixelData = image.tobytes()
+#
+#             dcm_list[i] = new_ds
 
 
 
