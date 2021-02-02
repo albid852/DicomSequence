@@ -5,5 +5,3 @@ numpy~=1.19.2
 matplotlib~=3.3.2
 Pillow~=8.1.0
 opencv-python-headless~=4.5.1.48
-
-opencv-python~=4.5.1.48
