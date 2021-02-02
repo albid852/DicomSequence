@@ -98,8 +98,11 @@ if len(uploaded_file) > 0:
         slide = st.slider("Dicom Image", 1, len(img_list))
         st.image(img_list[slide - 1])  # can use css to center this
 
+        display = ("Height, Width", "Size")
+        options = list(range(len(display)))
         hw_check = st.selectbox("Set Height and Width or Size?",
-                                ("Height, Width", "Size"))
+                                options=options, format_func=lambda x: display[x])
+
         if hw_check:
             height_slide = st.slider("Set Height", 1, 512, value=img_list[0].shape[0])
             width_slide = st.slider("Set Width", 1, 512, value=img_list[0].shape[1])
