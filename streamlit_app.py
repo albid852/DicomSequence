@@ -93,12 +93,18 @@ if len(uploaded_file) > 0:
 
     img_list = get_png(dcm_list)
 
-    if st.button("Clear All"):
-        uploaded_file = []
 
     if len(img_list) > 1:
         slide = st.slider("Dicom Image", 1, len(img_list))
         st.image(img_list[slide - 1])  # can use css to center this
+
+        hw_check = st.selectbox("Set Height and Width or Size?",
+                                ("Height, Width", "Size"))
+        if hw_check:
+            height_slide = st.slider("Set Height", 1, 512, value=img_list[0].shape[0])
+            width_slide = st.slider("Set Width", 1, 512, value=img_list[0].shape[1])
+        else:
+            size_slide = st.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
 
         interp_check = st.checkbox("Interpolate Volume")
         if interp_check:
