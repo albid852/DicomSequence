@@ -80,9 +80,9 @@ class DcmSequence:
         :param src: Source directory to read the masks in from.
         :return: None
         """
-        for file in glob.glob(os.path.normpath(src + "/*")):
+        for file in sorted(glob.glob(os.path.normpath(src + "/*"))):
             if file not in self.mask_files:
-                img = cv2.imread(file)
+                img = cv2.imread(file, flags=0)
                 self.masks.append(img)
                 self.mask_files.append(file)
 
@@ -158,6 +158,8 @@ class DcmSequence:
         for i in range(len(self.mask_files)):
             img = self.masks[i]
             img = cv2.resize(img, dim)
+            img[img < 128] = 0
+            img[img >= 128] = 255
             self.masks[i] = img
 
     def plot_norms(self, start: int = 0, end: Union[int, None] = None) -> None:
@@ -222,7 +224,7 @@ class DcmSequence:
             vol = get_png(self.collection[start:end])
             multi_slice_viewer(vol)
 
-    def interpolate_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
+    def interpolate_dcm_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
         images between every consecutive pair of slices. The num_slices determines how
@@ -236,6 +238,20 @@ class DcmSequence:
         """
         images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
         stack = interpolate_volume(images, num_slices=num_slices)
+        return stack
+
+    def interpolate_mask_volume(self, num_slices: int = 4) -> np.ndarray:
+        """
+        Create an interpolated volume from the image stack. This will interpolate slices of
+        images between every consecutive pair of slices. The num_slices determines how
+        many interpolated slices are between the original slices and the separation between them.
+        :param num_slices: Number of interpolated slices between the original slices
+        :return: the entire interpolated volume
+        """
+        images = np.array(self.masks)
+        stack = interpolate_volume(images, num_slices=num_slices)
+        stack[stack < 128] = 0
+        stack[stack >= 128] = 255
         return stack
 
     def get_png(self, clahe: bool = False, norm_alg: int = 1) -> (List[str], List[np.ndarray]):
