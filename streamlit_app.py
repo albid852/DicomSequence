@@ -9,6 +9,7 @@ from io import BytesIO
 from scipy import interpolate
 from preprocessing import get_png, resize
     # convert_to_8bit
+from DCMSequence import DcmSequence
 
 
 @st.cache(suppress_st_warning=True, show_spinner=False)
@@ -83,16 +84,18 @@ st.title("Pydicom Image")
 
 dcm_list = []
 img_list = []
+dcms = DcmSequence()
 
 uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
 if len(uploaded_file) > 0:
     for file in uploaded_file:
         dcm_path = DicomBytesIO(file.read())
         ds = pydicom.dcmread(dcm_path)
-        dcm_list.append(ds)
+        dcms.collection.append(ds)
+        dcms.dcm_files.append(file.name)
 
-    img_list = get_png(dcm_list)
-
+    dcms.sort()
+    filenames, img_list = dcms.get_png()
 
     if len(img_list) > 1:
         display = ("Size", "Height, Width")
@@ -111,6 +114,8 @@ if len(uploaded_file) > 0:
 
         slide = st.slider("Dicom Image", 1, len(img_list))
         st.image(img_list[slide - 1])  # can use css to center this
+
+        name = st.text(f"File name: {filenames[slide - 1]}")
 
         interp_check = st.checkbox("Interpolate Volume")
         if interp_check:

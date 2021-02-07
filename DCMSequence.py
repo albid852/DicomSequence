@@ -98,20 +98,15 @@ class DcmSequence:
             self.collection[i].save_as(os.path.join(dest, filename))
 
 
-    def sort(self, key: int = 1) -> None:
+    def sort(self, reverse: bool = False) -> None:
         """
         Sort the dicoms based on their names in dcm_files.
-        :param key: whether to sort in ascending or descending order.
-                    1 is ascending. -1 is descending.
+        :param reverse: whether to sort in ascending or descending order.
+                        False is ascending. True is descending.
         :return: None
         """
         zipped = zip(self.dcm_files, self.collection)
-        if key == 1:
-            x = sorted(zipped)
-        elif key == -1:
-            x = sorted(zipped, reverse=True)
-        else:
-            raise ValueError("key must be 1 or -1")
+        x = sorted(zipped, reverse=reverse)
         self.dcm_files = [d for d, c in x]
         self.collection = [c for d, c in x]
 
