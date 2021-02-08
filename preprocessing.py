@@ -16,6 +16,8 @@ def convert_int_to_uint(img: np.ndarray) -> np.ndarray:
         img_min = np.min(img)
         img += abs(img_min)
         return img.astype(np.uint16)
+    else:
+        return img
 
 
 # PREPROCESSING IMAGES
