@@ -34,8 +34,7 @@ dcms.resize((256, 256))
 # to locally normalize an image
 linear_names, linear_images = dcms.get_png(norm_alg=1)  # linear normalization
 cr_names, cr_images = dcms.get_png(norm_alg=2)  # cr normalization
-clahe_names, clahe_images = dcms.get_png(clahe=True, norm_alg=0,
-                                         clip_lim=40, tile_grid_size=(8, 8))  # CLAHE normalization
+clahe_names, clahe_images = dcms.get_png(clahe=True, norm_alg=0)  # CLAHE normalization
 
 
 
@@ -62,7 +61,7 @@ dcms.convert_to_8bit(clahe=True, norm_alg=1)
 # INTERPOLATE VOLUME
 # to interpolate images between the slices you have
 # and you can visualize it slice-by-slice (3D rendering after interpolation coming soon)
-volume = dcms.interpolate_volume(num_slices=20, clahe=False, norm_alg=1)
+volume = dcms.interpolate_dcm_volume(num_slices=20, clahe=False, norm_alg=1)
 multi_slice_viewer(volume)
 
 
