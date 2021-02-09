@@ -9,7 +9,7 @@ from io import BytesIO
 from scipy import interpolate
 from preprocessing import get_png, resize
     # convert_to_8bit
-from PlotDCM import plot_comparisons
+from PlotDCM import plot_comp2fiji
 from DCMSequence import DcmSequence
 
 
@@ -75,7 +75,6 @@ def get_image_download_link(vol: np.ndarray) -> str:
     return href
 
 
-
 st.set_page_config("Pydicom Image")
 st.title("Pydicom Image")
 
@@ -94,12 +93,12 @@ if len(uploaded_file) > 0:
     filenames, img_list = dcms.get_png()
 
     if len(img_list) > 1:
+        st.sidebar.title("Set Image Size")
         display = ("Size", "Height, Width")
         options = list(range(len(display)))
         hw_check = st.sidebar.selectbox("Set Height and Width or Size?",
                                         options=options,
                                         format_func=lambda x: display[x])
-
         if hw_check:
             height_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
             width_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
@@ -108,6 +107,7 @@ if len(uploaded_file) > 0:
             size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
             img_list = resize(img_list, (size_slide, size_slide))
 
+        st.sidebar.title("Sort DICOM's by File Name")
         sort = st.sidebar.checkbox("Sort by file name")
         if sort:
             dcms.sort_dcm()
@@ -121,7 +121,10 @@ if len(uploaded_file) > 0:
         norm_check = st.checkbox("Visualize normalizations")
 
         if norm_check:
-            st.pyplot(plot_comparisons(img_list[slide - 1]), name=filenames[slide - 1])
+            st.sidebar.title("Apply normalizations to Images")
+            st.pyplot(plot_comp2fiji(img_list[slide - 1]))
+            clahe_check = st.sidebar.checkbox("Apply CLAHE")
+            cr_check = st.sidebar.checkbox("Apply CR normalization")
 
         interp_check = st.checkbox("Interpolate Volume")
         if interp_check:

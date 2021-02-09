@@ -92,5 +92,46 @@ def plot_comparisons(original: np.ndarray, cr: Union[np.ndarray, None] = None,
     ax3.imshow(fiji, cmap='gray')
     ax4.imshow(clahe, cmap='gray')
 
-    plt.show()
+    # plt.show()
+    return fig
+
+def plot_comp2fiji(img: np.ndarray,
+                   cr: Union[np.ndarray, None] = None,
+                   clahe: Union[np.ndarray, None] = None) -> plt.Figure:
+    """
+        Visualization of the different image processing algorithms in a 2x2 grid using
+        matplotlib.
+        :param img: the 8-bit image or the fiji processed version of the image
+        :param cr: cr processed version of the image
+        :param clahe: clahe processed version of the image
+        :return: plotted figure
+        """
+    fig = plt.figure()
+    plt.axis('off')
+    plt.tick_params(axis='both')
+    ax1 = fig.add_subplot(131)
+    ax2 = fig.add_subplot(132)
+    ax3 = fig.add_subplot(133)
+
+    ax1.title.set_text('Original')  # 8-bit image / fiji version
+    ax2.title.set_text('CR')
+    ax3.title.set_text('CLAHE')
+
+    ax1.get_xaxis().set_visible(False)
+    ax1.get_yaxis().set_visible(False)
+
+    ax2.get_xaxis().set_visible(False)
+    ax2.get_yaxis().set_visible(False)
+
+    ax3.get_xaxis().set_visible(False)
+    ax3.get_yaxis().set_visible(False)
+
+    if cr is None:
+        cr = apply_cr_normalization(img)
+    if clahe is None:
+        clahe = apply_clahe(img)
+
+    ax1.imshow(img, cmap='gray')
+    ax2.imshow(cr, cmap='gray')
+    ax3.imshow(clahe, cmap='gray')
     return fig
