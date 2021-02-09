@@ -50,6 +50,7 @@ class DcmSequence:
         self.mask_files = []
         self.masks = []
 
+
     def load_dcm(self, src: str) -> None:
         """
         Add a dicom to the collection
@@ -57,11 +58,12 @@ class DcmSequence:
         :return: None
         """
 
-        for file in sorted(glob.glob(os.path.normpath(src + "/*.dcm"))):
+        for file in glob.glob(os.path.normpath(src + "/*.dcm")):
             if file not in self.dcm_files:
                 ds = pydicom.dcmread(file)
                 self.collection.append(ds)
                 self.dcm_files.append(file)
+
 
     def save_dcm(self, dest: str) -> None:
         """
@@ -74,17 +76,19 @@ class DcmSequence:
             filename = os.path.basename(path)
             self.collection[i].save_as(os.path.join(dest, filename))
 
+
     def load_mask(self, src: str) -> None:
         """
         Add a mask to the masks
         :param src: Source directory to read the masks in from.
         :return: None
         """
-        for file in sorted(glob.glob(os.path.normpath(src + "/*"))):
+        for file in glob.glob(os.path.normpath(src + "/*")):
             if file not in self.mask_files:
                 img = cv2.imread(file, flags=0)
                 self.masks.append(img)
                 self.mask_files.append(file)
+
 
     def save_mask(self, dest: str) -> None:
         """
@@ -98,7 +102,7 @@ class DcmSequence:
             self.collection[i].save_as(os.path.join(dest, filename))
 
 
-    def sort(self, reverse: bool = False) -> None:
+    def sort_dcm(self, reverse: bool = False) -> None:
         """
         Sort the dicoms based on their names in dcm_files.
         :param reverse: whether to sort in ascending or descending order.
@@ -109,6 +113,19 @@ class DcmSequence:
         x = sorted(zipped, reverse=reverse)
         self.dcm_files = [d for d, c in x]
         self.collection = [c for d, c in x]
+
+
+    def sort_mask(self, reverse: bool = False) -> None:
+        """
+        Sort the masks based on their names in mask_files.
+        :param reverse: whether to sort in ascending or descending order.
+                        False is ascending. True is descending.
+        :return: None
+        """
+        zipped = zip(self.mask_files, self.masks)
+        x = sorted(zipped, reverse=reverse)
+        self.mask_files = [d for d, c in x]
+        self.masks = [c for d, c in x]
 
 
     def remove_dcm(self, **kwargs) -> None:
@@ -135,6 +152,7 @@ class DcmSequence:
                 self.dcm_files.remove(self.dcm_files[idx])
                 self.collection.remove(self.collection[idx])
 
+
     def resize(self, dim: Tuple[int, int]) -> None:
         """
         Resize all dicoms and masks to the same dimension.
@@ -156,6 +174,7 @@ class DcmSequence:
             img[img < 128] = 0
             img[img >= 128] = 255
             self.masks[i] = img
+
 
     def plot_norms(self, start: int = 0, end: Union[int, None] = None) -> None:
         """
@@ -201,6 +220,7 @@ class DcmSequence:
                 print('Press q to close this plot and view next image')
                 plt.waitforbuttonpress()
 
+
     def volshow(self, start: int = 0, end: Union[int, None] = None) -> None:
         """
         View the dicom images in the collection from start to end indices. Press left and
@@ -219,6 +239,7 @@ class DcmSequence:
             vol = get_png(self.collection[start:end])
             multi_slice_viewer(vol)
 
+
     def interpolate_dcm_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
@@ -235,6 +256,7 @@ class DcmSequence:
         stack = interpolate_volume(images, num_slices=num_slices)
         return stack
 
+
     def interpolate_mask_volume(self, num_slices: int = 4) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
@@ -248,6 +270,7 @@ class DcmSequence:
         stack[stack < 128] = 0
         stack[stack >= 128] = 255
         return stack
+
 
     def get_png(self, clahe: bool = False, norm_alg: int = 1) -> (List[str], List[np.ndarray]):
         """
@@ -266,6 +289,7 @@ class DcmSequence:
 
         images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
         return png_names, images
+
 
     def convert_to_8bit(self, clahe: bool = False, norm_alg: int = 1) -> None:
         """

@@ -9,6 +9,7 @@ from io import BytesIO
 from scipy import interpolate
 from preprocessing import get_png, resize
     # convert_to_8bit
+from PlotDCM import plot_comparisons
 from DCMSequence import DcmSequence
 
 
@@ -74,10 +75,6 @@ def get_image_download_link(vol: np.ndarray) -> str:
     return href
 
 
-def plot_norms(img: np.ndarray) -> None:
-    pass
-
-
 
 st.set_page_config("Pydicom Image")
 st.title("Pydicom Image")
@@ -94,7 +91,6 @@ if len(uploaded_file) > 0:
         dcms.collection.append(ds)
         dcms.dcm_files.append(file.name)
 
-    dcms.sort()
     filenames, img_list = dcms.get_png()
 
     if len(img_list) > 1:
@@ -112,10 +108,20 @@ if len(uploaded_file) > 0:
             size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
             img_list = resize(img_list, (size_slide, size_slide))
 
+        sort = st.sidebar.checkbox("Sort by file name")
+        if sort:
+            dcms.sort_dcm()
+            dcms.sort_mask()
+
         slide = st.slider("Dicom Image", 1, len(img_list))
         st.image(img_list[slide - 1])  # can use css to center this
 
         name = st.text(f"File name: {filenames[slide - 1]}")
+
+        norm_check = st.checkbox("Visualize normalizations")
+
+        if norm_check:
+            st.pyplot(plot_comparisons(img_list[slide - 1]), name=filenames[slide - 1])
 
         interp_check = st.checkbox("Interpolate Volume")
         if interp_check:

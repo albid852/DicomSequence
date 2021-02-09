@@ -44,8 +44,8 @@ def multi_slice_viewer(volume: np.ndarray):
 
 # PLOTTING PROCESSING COMPARISONS
 def plot_comparisons(original: np.ndarray, cr: Union[np.ndarray, None] = None,
-                     fiji: Union[np.ndarray, None] = None, clahe: Union[np.ndarray, None] = None,
-                     name: str = "UNNAMED"):
+                     fiji: Union[np.ndarray, None] = None,
+                     clahe: Union[np.ndarray, None] = None) -> plt.Figure:
     """
     Visualization of the different image processing algorithms in a 2x2 grid using
     matplotlib.
@@ -53,7 +53,6 @@ def plot_comparisons(original: np.ndarray, cr: Union[np.ndarray, None] = None,
     :param cr: cr processed version of the image
     :param fiji: fiji processed version of the image
     :param clahe: clahe processed version of the image
-    :param name: Name of the image. Default is UNNAMED
     :return: plotted figure
     """
     fig = plt.figure()
@@ -64,7 +63,6 @@ def plot_comparisons(original: np.ndarray, cr: Union[np.ndarray, None] = None,
     ax3 = fig.add_subplot(223)
     ax4 = fig.add_subplot(224)
 
-    fig.suptitle(name, fontsize=16)
     ax1.title.set_text('Original')
     ax2.title.set_text('CR')
     ax3.title.set_text('FIJI')
