@@ -74,7 +74,7 @@ class DcmSequence:
         dest = os.path.normpath(dest + '/')
         for i, path in enumerate(self.dcm_files):
             filename = os.path.basename(path)
-            self.collection[i].save_as(os.path.join(dest, filename))
+            cv2.imwrite(os.path.join(dest, filename), self.masks[i])
 
 
     def load_mask(self, src: str) -> None:
