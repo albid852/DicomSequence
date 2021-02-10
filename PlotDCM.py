@@ -34,7 +34,12 @@ def multi_slice_viewer(volume: np.ndarray):
 
     fig, ax = plt.subplots()
     ax.volume = volume
-    ax.index = 0
+    i = 0
+    while i < len(volume) and np.max(volume[i]) == 0:
+        i += 1
+    if i == len(volume):
+        i = 0
+    ax.index = i
     ax.set_title(str(ax.index))
     ax.imshow(volume[ax.index], cmap='gray')
     print("Use the right arrow key to go to the next slice")

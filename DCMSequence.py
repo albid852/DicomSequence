@@ -153,6 +153,31 @@ class DcmSequence:
                 self.collection.remove(self.collection[idx])
 
 
+    def remove_mask(self, **kwargs) -> None:
+        """
+        Remove a mask and path from the collection.
+        :param kwargs: Expecting to receive name or idx of file to remove
+        :return: None
+        """
+        if 'name' not in kwargs.keys() and 'idx' not in kwargs.keys():
+            raise KeyError('Expected either filename or index to delete')
+        elif 'name' in kwargs.keys():
+            name = kwargs['name']
+            if name not in self.mask_files:
+                raise ValueError(name + ' is not in files')
+            else:
+                idx = self.mask_files.index(name)
+                self.mask_files.remove(name)
+                self.masks.remove(self.masks[idx])
+        elif 'idx' in kwargs.keys():
+            idx = kwargs['idx']
+            if idx >= len(self.mask_files):
+                raise ValueError('Index out of bounds')
+            else:
+                self.mask_files.remove(self.mask_files[idx])
+                self.masks.remove(self.masks[idx])
+
+
     def resize(self, dim: Tuple[int, int]) -> None:
         """
         Resize all dicoms and masks to the same dimension.
@@ -196,10 +221,7 @@ class DcmSequence:
                 img_clahe = apply_clahe(img, clip_lim=clip_lim, tile_grid_size=tile_grid_size)
                 img_fiji = apply_fiji_normalization(img)
 
-                name = self.dcm_files[i]
-                name = os.path.basename(name)
-
-                plot_comparisons(img, cr=img_cr, fiji=img_fiji, clahe=img_clahe, name=name)
+                plot_comparisons(img, cr=img_cr, fiji=img_fiji, clahe=img_clahe)
                 print('Press q to close this plot and view next image')
                 plt.waitforbuttonpress()
 
@@ -213,10 +235,7 @@ class DcmSequence:
                 img_clahe = apply_clahe(img, clip_lim=clip_lim, tile_grid_size=tile_grid_size)
                 img_fiji = apply_fiji_normalization(img)
 
-                name = self.dcm_files[i]
-                name = os.path.basename(name)
-
-                plot_comparisons(img, cr=img_cr, fiji=img_fiji, clahe=img_clahe, name=name)
+                plot_comparisons(img, cr=img_cr, fiji=img_fiji, clahe=img_clahe)
                 print('Press q to close this plot and view next image')
                 plt.waitforbuttonpress()
 
@@ -233,11 +252,28 @@ class DcmSequence:
 
         if end is None:
             vol = get_png(self.collection[start:])
-            multi_slice_viewer(vol)
+            multi_slice_viewer(np.array(vol))
 
         elif isinstance(end, int):
             vol = get_png(self.collection[start:end])
-            multi_slice_viewer(vol)
+            multi_slice_viewer(np.array(vol))
+
+
+    def mask_show(self, start: int = 0, end: Union[int, None] = None) -> None:
+        """
+        View the mask images in the collection from start to end indices. Press left and
+        right arrow keys to scroll through.
+        :param start: Which index to start at in the collection.
+        :param end: Which index to stop at in the collection (exclusive). Value of None
+        will plot every image.
+        :return: None
+        """
+
+        if end is None:
+            multi_slice_viewer(np.array(self.masks))
+
+        elif isinstance(end, int):
+            multi_slice_viewer(np.array(self.masks[start:end]))
 
 
     def interpolate_dcm_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
@@ -253,22 +289,25 @@ class DcmSequence:
         :return: the entire interpolated volume
         """
         images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
-        stack = interpolate_volume(images, num_slices=num_slices)
+        stack = interpolate_volume(np.array(images), num_slices=num_slices)
         return stack
 
 
-    def interpolate_mask_volume(self, num_slices: int = 4) -> np.ndarray:
+    def interpolate_mask_volume(self, num_slices: int = 4, binarize: bool = False, split_val: int = 128) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
         images between every consecutive pair of slices. The num_slices determines how
         many interpolated slices are between the original slices and the separation between them.
         :param num_slices: Number of interpolated slices between the original slices
+        :param binarize: whether to binarize the interpolated volume or not
+        :param split_val: int value to split the binarization
         :return: the entire interpolated volume
         """
         images = np.array(self.masks)
         stack = interpolate_volume(images, num_slices=num_slices)
-        stack[stack < 128] = 0
-        stack[stack >= 128] = 255
+        if binarize:
+            stack[stack < split_val] = 0
+            stack[stack >= split_val] = 255
         return stack
 
 

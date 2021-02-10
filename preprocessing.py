@@ -129,7 +129,7 @@ def interpolate_volume(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
     :return: the entire interpolated volume
     """
     if len(volume.shape) != 3:
-        raise ValueError("volume must be of shape (depth, height, width)")
+        raise ValueError(f"volume must be of shape (depth, height, width), not {volume.shape}")
     depth, img_width, img_height = volume.shape
     # set up interpolator
     points = (np.arange(depth), np.arange(img_height), np.arange(img_width))  # (z, y, x)
