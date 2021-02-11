@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/DicomSequence.iml" filepath="$PROJECT_DIR$/.idea/DicomSequence.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../dicoms/.idea/dicoms.iml" filepath="$PROJECT_DIR$/../../dicoms/.idea/dicoms.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../openCVExperience/.idea/openCVExperience.iml" filepath="$PROJECT_DIR$/../../openCVExperience/.idea/openCVExperience.iml" />
     </modules>
   </component>
 </project>
