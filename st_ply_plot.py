@@ -1,36 +1,38 @@
-import streamlit as st
+# import streamlit as st
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 import meshio
 from skimage.measure import block_reduce
-
-
-# def downsample(pcloud_np, resolution):
-#     xy = pcloud_np.T[:2]
-#     xy = ((xy + resolution / 2) // resolution).astype(int)
-#     mn, mx = xy.min(axis=1), xy.max(axis=1)
-#     sz = mx + 1 - mn
-#     flatidx = np.ravel_multi_index(xy-mn[:, None], sz)
-#     histo = np.bincount(flatidx, pcloud_np[:, 2], sz.prod()) / np.maximum(1, np.bincount(flatidx, None, sz.prod()))
-#     return histo.reshape(sz), *(xy * resolution)
 #
-
-st.title("Pointcloud Visuals")
-fig = plt.figure()
-ax = plt.axes(projection='3d')
-ax.set_axis_off()
+# st.title("Pointcloud Visuals")
+# fig = plt.figure()
+# ax = plt.axes(projection='3d')
+# ax.set_axis_off()
 
 mesh = meshio.read('/Users/albi/Downloads/sample.ply')
-xyz = mesh.points
-rgb = np.array(list(mesh.point_data.values()))
+xyz = mesh.points.astype(np.int16)
+rgb = np.array(list(mesh.point_data.values())).T
 
-aaa = block_reduce(xyz, (30, 30), np.mean, func_kwargs={'dtype': np.uint8})
+x_max = np.max(xyz[:, 0])
+y_max = np.max(xyz[:, 1])
+z_min, z_max = np.min(xyz[:, 2]), np.max(xyz[:, 2])
 
-ax.scatter(xyz[-100000:, 0], xyz[-100000:, 1], xyz[-100000:, 2], c=rgb.T[-100000:]/255., s=0.1)
+vol = np.zeros((x_max + 50, y_max + 50, abs(z_min) + 50, 4), dtype='uint8')
 
-st.pyplot(fig)
+xyz[:, 2] += abs(z_min)
+
+for i, (x, y, z) in enumerate(xyz):
+    vol[x, y, z] = np.append(rgb[i], 1)
+
+aaa = block_reduce(vol, (2, 2, 1, 1), np.mean, func_kwargs={'dtype': np.uint8})
+# works, but reduces WAY too much, to the point where like nothing is real. Would have to resample values if anything
+# multiplying by scalar (no addition to leave 0's) to increase intensity in RGB would work wonders (don't hit Alpha)
+
+# ax.scatter(xyz[-100000:, 0], xyz[-100000:, 1], xyz[-100000:, 2], c=rgb.T[-100000:]/255., s=0.1)
+
+# st.pyplot(fig)
 
 
 
