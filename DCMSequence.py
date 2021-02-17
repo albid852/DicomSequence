@@ -50,6 +50,25 @@ class DcmSequence:
         self.mask_files = []
         self.masks = []
 
+    def __str__(self):
+        s = "-----------------------------------------\n DICOMS\n"
+        for i in range(len(self.dcm_files)):
+            img_shape = self.collection[i].pixel_array.shape
+            img_dtype = self.collection[i].pixel_array.dtype
+            name = self.dcm_files[i]
+            s += f"{i}) DCM of shape {img_shape}, dtype {img_dtype}\n"
+            s += f"\t Filepath: {name}\n \n"
+        s += "-----------------------------------------\n MASKS\n"
+        for i in range(len(self.mask_files)):
+            img_shape = self.masks[i].shape
+            img_dtype = self.masks[i].dtype
+            name = self.mask_files[i]
+            s += f"{i}) Image of shape {img_shape}, dtype {img_dtype}\n"
+            s += f"\t Filepath: {name}\n \n"
+        return s
+
+    def __repr__(self):
+        return f"DcmSequence of {len(self.collection)} DICOMS, {len(self.masks)} Masks"
 
     def load_dcm(self, src: str) -> None:
         """
@@ -57,12 +76,15 @@ class DcmSequence:
         :param src: Source directory to read the dicoms in from.
         :return: None
         """
-
-        for file in glob.glob(os.path.normpath(src + "/*.dcm")):
-            if file not in self.dcm_files:
-                ds = pydicom.dcmread(file)
-                self.collection.append(ds)
-                self.dcm_files.append(file)
+        files = glob.glob(os.path.normpath(src + "/*.dcm"))
+        if len(files) == 0:
+            RuntimeWarning("No DICOM files found in this directory")
+        else:
+            for file in files:
+                if file not in self.dcm_files:
+                    ds = pydicom.dcmread(file)
+                    self.collection.append(ds)
+                    self.dcm_files.append(file)
 
 
     def save_dcm(self, dest: str) -> None:
@@ -74,7 +96,7 @@ class DcmSequence:
         dest = os.path.normpath(dest + '/')
         for i, path in enumerate(self.dcm_files):
             filename = os.path.basename(path)
-            cv2.imwrite(os.path.join(dest, filename), self.masks[i])
+            self.collection[i].save_as(os.path.join(dest, filename))
 
 
     def load_mask(self, src: str) -> None:
@@ -83,10 +105,14 @@ class DcmSequence:
         :param src: Source directory to read the masks in from.
         :return: None
         """
-        for file in glob.glob(os.path.normpath(src + "/*")):
-            if file not in self.mask_files:
-                img = cv2.imread(file, flags=0)
-                self.masks.append(img)
+        files = glob.glob(os.path.normpath(src + "/*"))
+        if len(files) == 0:
+            RuntimeWarning("No DICOM files found in this directory")
+        else:
+            for file in files:
+                if file not in self.mask_files:
+                    img = cv2.imread(file, flags=0)
+                    self.masks.append(img)
                 self.mask_files.append(file)
 
 
@@ -99,8 +125,7 @@ class DcmSequence:
         dest = os.path.normpath(dest + '/')
         for i, path in enumerate(self.mask_files):
             filename = os.path.basename(path)
-            self.collection[i].save_as(os.path.join(dest, filename))
-
+            cv2.imwrite(os.path.join(dest, filename), self.masks[i])
 
     def sort_dcm(self, reverse: bool = False) -> None:
         """
