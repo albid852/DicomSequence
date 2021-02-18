@@ -5,33 +5,54 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 import meshio
 from skimage.measure import block_reduce
-#
-# st.title("Pointcloud Visuals")
-# fig = plt.figure()
-# ax = plt.axes(projection='3d')
-# ax.set_axis_off()
+from PlotDCM import multi_slice_viewer
+from skimage.transform import resize
+from PIL import Image
+
+# # st.title("Pointcloud Visuals")
+
+def vol2points(vol: np.ndarray) -> np.ndarray:
+    pass
+
+def points2vol(points: np.ndarray, rgb: np.ndarray, yx_shape=(256, 256), dtype: str = 'uint8') -> np.ndarray:
+    x_max = np.max(points[:, 0])
+    y_max = np.max(points[:, 1])
+    points[:, 2] += abs(np.min(points[:, 2]))  # making sure z are positive
+    z_min, z_max = np.min(points[:, 2]), np.max(points[:, 2])
+
+    vol = np.zeros((z_max + 50, y_max + 50, x_max + 50, 4), dtype=dtype)
+
+    c = 0
+    for x, y, z in points:
+        vol[z, y, x] = np.append(rgb[c], 1)
+        c += 1
+
+    tmp = np.zeros((vol.shape[0], yx_shape[0], yx_shape[1], 4), dtype=dtype)
+    for i in range(vol.shape[0]):
+        img = Image.fromarray(vol[i], 'RGBA')
+        img = img.resize(yx_shape)
+        tmp[i] = np.asarray(img)
+    return tmp
 
 mesh = meshio.read('/Users/albi/Downloads/sample.ply')
 xyz = mesh.points.astype(np.int16)
 rgb = np.array(list(mesh.point_data.values())).T
 
-x_max = np.max(xyz[:, 0])
-y_max = np.max(xyz[:, 1])
-z_min, z_max = np.min(xyz[:, 2]), np.max(xyz[:, 2])
+np.unique(xyz[:, 2])
 
-vol = np.zeros((x_max + 50, y_max + 50, abs(z_min) + 50, 4), dtype='uint8')
+vol = points2vol(xyz, rgb, yx_shape=(256, 256))  # downsample and conversion works
 
-xyz[:, 2] += abs(z_min)
+# NEXT is to convert from volume to points
 
-for i, (x, y, z) in enumerate(xyz):
-    vol[x, y, z] = np.append(rgb[i], 1)
 
-aaa = block_reduce(vol, (2, 2, 1, 1), np.mean, func_kwargs={'dtype': np.uint8})
-# works, but reduces WAY too much, to the point where like nothing is real. Would have to resample values if anything
-# multiplying by scalar (no addition to leave 0's) to increase intensity in RGB would work wonders (don't hit Alpha)
+# multi_slice_viewer(vol[:, :, :, :3])
+#
+# abc = rgb[-100000:]/255.
 
-# ax.scatter(xyz[-100000:, 0], xyz[-100000:, 1], xyz[-100000:, 2], c=rgb.T[-100000:]/255., s=0.1)
-
+# fig = plt.figure()
+# ax = plt.axes(projection='3d')
+# ax.set_axis_off()
+# ax.scatter(xyz[:, 2], xyz[:, 1], xyz[:, 0], c=rgb[:]/255., s=0.1)
 # st.pyplot(fig)
 
 
