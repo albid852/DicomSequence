@@ -127,6 +127,9 @@ class DcmSequence:
             filename = os.path.basename(path)
             cv2.imwrite(os.path.join(dest, filename), self.masks[i])
 
+    def is_empty(self):
+        return len(self.collection) == 0 and len(self.masks) == 0
+
     def sort_dcm(self, reverse: bool = False) -> None:
         """
         Sort the dicoms based on their names in dcm_files.
