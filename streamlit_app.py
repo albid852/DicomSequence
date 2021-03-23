@@ -82,65 +82,75 @@ dcm_list = []
 img_list = []
 dcms = DcmSequence()
 
-uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
-if len(uploaded_file) > 0:
-    for file in uploaded_file:
-        dcm_path = DicomBytesIO(file.read())
-        ds = pydicom.dcmread(dcm_path)
-        dcms.collection.append(ds)
-        dcms.dcm_files.append(file.name)
+# password
+password = "Raveen is Notion Ambassador"
+password_text = st.text_input('Input Password', type='password')
 
-    filenames, img_list = dcms.get_png()
+# I don't think there is way to remove the password box after the correct password as been inputed due to the
+# limitations of streamlit
+if password != password_text:
+    if password_text:
+        st.text("Sorry Incorrect Password")
+else:
+    uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
+    if len(uploaded_file) > 0:
+        for file in uploaded_file:
+            dcm_path = DicomBytesIO(file.read())
+            ds = pydicom.dcmread(dcm_path)
+            dcms.collection.append(ds)
+            dcms.dcm_files.append(file.name)
 
-    if len(img_list) > 1:
-        st.sidebar.title("Set Image Size")
-        display = ("Size", "Height, Width")
-        options = list(range(len(display)))
-        hw_check = st.sidebar.selectbox("Set Height and Width or Size?",
-                                        options=options,
-                                        format_func=lambda x: display[x])
-        if hw_check:
-            height_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
-            width_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
-            img_list = resize(img_list, (height_slide, width_slide))
+        filenames, img_list = dcms.get_png()
+
+        if len(img_list) > 1:
+            st.sidebar.title("Set Image Size")
+            display = ("Size", "Height, Width")
+            options = list(range(len(display)))
+            hw_check = st.sidebar.selectbox("Set Height and Width or Size?",
+                                            options=options,
+                                            format_func=lambda x: display[x])
+            if hw_check:
+                height_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
+                width_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
+                img_list = resize(img_list, (height_slide, width_slide))
+            else:
+                size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
+                img_list = resize(img_list, (size_slide, size_slide))
+
+            st.sidebar.title("Sort DICOM's by File Name")
+            sort = st.sidebar.checkbox("Sort by file name")
+            if sort:
+                dcms.sort_dcm()
+                dcms.sort_mask()
+
+            slide = st.slider("Dicom Image", 1, len(img_list))
+            st.image(img_list[slide - 1])  # can use css to center this
+
+            name = st.text(f"File name: {filenames[slide - 1]}")
+
+            norm_check = st.checkbox("Visualize normalizations")
+
+            if norm_check:
+                st.sidebar.title("Apply normalizations to Images")
+                st.pyplot(plot_comp2fiji(img_list[slide - 1]))
+                clahe_check = st.sidebar.checkbox("Apply CLAHE")
+                cr_check = st.sidebar.checkbox("Apply CR normalization")
+
+            interp_check = st.checkbox("Interpolate Volume")
+            if interp_check:
+                st.header("Interpolation")
+                n = st.number_input("Number of slices between", 0, 25)
+
+                with st.spinner("Interpolating..."):
+                    dcm_vol = interpolate_volume(np.array(img_list), num_slices=n)
+                st.success("Successfully Interpolated!")
+
+                slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
+                st.image(dcm_vol[slide2 - 1])  # can use css to center this
+
+                if st.button("Download"):
+                    with st.spinner("Getting your link ready..."):
+                        st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
+                    st.success("Click the link to download your images!")
         else:
-            size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
-            img_list = resize(img_list, (size_slide, size_slide))
-
-        st.sidebar.title("Sort DICOM's by File Name")
-        sort = st.sidebar.checkbox("Sort by file name")
-        if sort:
-            dcms.sort_dcm()
-            dcms.sort_mask()
-
-        slide = st.slider("Dicom Image", 1, len(img_list))
-        st.image(img_list[slide - 1])  # can use css to center this
-
-        name = st.text(f"File name: {filenames[slide - 1]}")
-
-        norm_check = st.checkbox("Visualize normalizations")
-
-        if norm_check:
-            st.sidebar.title("Apply normalizations to Images")
-            st.pyplot(plot_comp2fiji(img_list[slide - 1]))
-            clahe_check = st.sidebar.checkbox("Apply CLAHE")
-            cr_check = st.sidebar.checkbox("Apply CR normalization")
-
-        interp_check = st.checkbox("Interpolate Volume")
-        if interp_check:
-            st.header("Interpolation")
-            n = st.number_input("Number of slices between", 0, 25)
-
-            with st.spinner("Interpolating..."):
-                dcm_vol = interpolate_volume(np.array(img_list), num_slices=n)
-            st.success("Successfully Interpolated!")
-
-            slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
-            st.image(dcm_vol[slide2 - 1])  # can use css to center this
-
-            if st.button("Download"):
-                with st.spinner("Getting your link ready..."):
-                    st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
-                st.success("Click the link to download your images!")
-    else:
-        st.image(img_list[0])
+            st.image(img_list[0])
