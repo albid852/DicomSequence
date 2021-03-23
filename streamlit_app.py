@@ -78,21 +78,20 @@ def get_image_download_link(vol: np.ndarray) -> str:
 st.set_page_config("Pydicom Image")
 st.title("Pydicom Image")
 
-#password
+dcm_list = []
+img_list = []
+dcms = DcmSequence()
+
+# password
 password = "Raveen is Notion Ambassador"
-starting_message = "Input Password"
-input = st.text_input('Password Field', starting_message)
+password_text = st.text_input('Input Password', type='password')
 
-#I don't think there is way to remove the password box after the correct password as been inputed due to the limitations of streamlit
-if (input != password):
-    if (input != starting_message):
+# I don't think there is way to remove the password box after the correct password as been inputed due to the
+# limitations of streamlit
+if password != password_text:
+    if password_text:
         st.text("Sorry Incorrect Password")
-
 else:
-    dcm_list = []
-    img_list = []
-    dcms = DcmSequence()
-
     uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
     if len(uploaded_file) > 0:
         for file in uploaded_file:
@@ -155,4 +154,3 @@ else:
                     st.success("Click the link to download your images!")
         else:
             st.image(img_list[0])
-
