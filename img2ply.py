@@ -23,7 +23,7 @@ The package can also be used as a library
 import time
 import fileinput
 from PIL import Image
-import cv2
+import numpy as np
 
 # ----------------------------------------------------------------------------
 
@@ -80,45 +80,8 @@ def getPositionMapper(direction):
     # build mapper
     return order
 
-
-# ----------------------------------------------------------------------------
-
-# not needed
-# def getImageSequence(input):
-#     """
-#     List the content of the input directory and filter through it and find
-#     all of the supported file extensions. Once this list is created it will
-#     be sorted. This means that it's very important to number your image
-#     sequence before conversion
-#
-#     :param str input: Input directory
-#     :return: Ordered list of images
-#     :rtype: list
-#     """
-#     # get variable
-#     images = []
-#
-#     # list dir
-#     files = os.listdir(input)
-#     files.sort()
-#
-#     # loop dir
-#     for f in files:
-#         # get extension
-#         _, ext = os.path.splitext(f)
-#
-#         # validate extension
-#         if not ext[1:].lower() in SUPPORTED_FILE_EXTENSION:
-#             continue
-#
-#         # add images
-#         images.append(os.path.join(input, f))
-#
-#     return images
-
-
 def getImageData(img, ignore_alpha=True, w_samples=0,
-                 h_samples=0, maintain_aspect_ratio=True):
+                 h_samples=0, reduce_factor=1, maintain_aspect_ratio=True):
     """
     Read the image and resize it based on the sample arguments, if the sample
     arguments are not set every pixel will be processed. When maintaining the
@@ -159,10 +122,15 @@ def getImageData(img, ignore_alpha=True, w_samples=0,
 
     # resize image
     image.thumbnail((w_samples, h_samples), Image.ANTIALIAS)
+    image_arr = np.asarray(image)[::reduce_factor, ::reduce_factor]
+    image = Image.fromarray(image_arr, mode='RGBA')
 
+    print(image.size)
     # loop pixels
-    for x in range(w_samples):
-        for y in range(h_samples):
+    for x in range(image.size[0]):
+        print(x)
+        for y in range(image.size[0]):
+            print(y)
             r, g, b, a = image.getpixel((x, y))
 
             if a < 25 and ignore_alpha:
@@ -183,7 +151,8 @@ def convert(
         images, ply, bb,
         direction="z", inverse=False,
         ignore_alpha=True,
-        w_samples=0, h_samples=0, maintain_aspect_ratio=True):
+        w_samples=0, h_samples=0, reduce_factor=1,
+        maintain_aspect_ratio=True):
     """
     Read the input directory and find all of the images of the supported file
     extensions. This list is sorted and will then have its pixels processed
@@ -252,10 +221,11 @@ def convert(
             # process image
             data = getImageData(
                 images[i],
-                ignore_alpha,
-                w_samples,
-                h_samples,
-                maintain_aspect_ratio
+                ignore_alpha=ignore_alpha,
+                w_samples=w_samples,
+                h_samples=h_samples,
+                reduce_factor=reduce_factor,
+                maintain_aspect_ratio=maintain_aspect_ratio
             )
 
             # process data
