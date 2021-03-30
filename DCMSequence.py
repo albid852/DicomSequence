@@ -317,6 +317,8 @@ class DcmSequence:
         :return: the entire interpolated volume
         """
         images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
+        if num_slices == 0:
+            return images
         stack = interpolate_volume(np.array(images), num_slices=num_slices)
         return stack
 
