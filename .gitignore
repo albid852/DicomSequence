@@ -1,0 +1,5 @@
+.vscode/settings.json
+dicom-examples/*
+!dicom-examples/series-000006
+!dicom-examples/README.md
+__pycache__/
