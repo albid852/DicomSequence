@@ -125,12 +125,9 @@ def getImageData(img, ignore_alpha=True, w_samples=0,
     image_arr = np.asarray(image)[::reduce_factor, ::reduce_factor]
     image = Image.fromarray(image_arr, mode='RGBA')
 
-    print(image.size)
     # loop pixels
     for x in range(image.size[0]):
-        print(x)
         for y in range(image.size[0]):
-            print(y)
             r, g, b, a = image.getpixel((x, y))
 
             if a < 25 and ignore_alpha:
