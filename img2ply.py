@@ -122,8 +122,8 @@ def getImageData(img, ignore_alpha=True, w_samples=0,
 
     # resize image
     image.thumbnail((w_samples, h_samples), Image.ANTIALIAS)
-    image_arr = np.asarray(image)[::reduce_factor, ::reduce_factor]
-    image = Image.fromarray(image_arr, mode='RGBA')
+    # image_arr = np.asarray(image)[::reduce_factor, ::reduce_factor]
+    # image = Image.fromarray(image_arr, mode='RGBA')
 
     # loop pixels
     for x in range(image.size[0]):

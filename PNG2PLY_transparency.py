@@ -55,5 +55,19 @@ if __name__ == "__main__":
     #
     print("***** VISUALIZNG PLY *****")
     # Visualizing Point Cloud
+
     pcd = o3d.io.read_point_cloud(ply_path)
+    voxel_down_pcd = pcd.voxel_down_sample(voxel_size=0.1)  # downsample
+
+    # removing outlier points
+    # 1
+    cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20,
+                                                        std_ratio=2.0)
+    # 2
+    # cl, ind = voxel_down_pcd.remove_radius_outlier(nb_points=16, radius=0.05)
+
+    inlier_cloud = pcd.select_down_sample(cl, ind)
+
+    # drawing both results
     o3d.visualization.draw_geometries([pcd])
+    o3d.visualization.draw_geometries([inlier_cloud])
