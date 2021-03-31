@@ -3,7 +3,7 @@ import pydicom
 import cv2
 from scipy import interpolate
 from typing import Tuple, List
-# from DCMSequence import _get_new_ds
+import math
 
 # CONVERT INT TO UINT
 def convert_int_to_uint(img: np.ndarray) -> np.ndarray:
@@ -119,7 +119,7 @@ def get_png(dcm_list: List[pydicom.Dataset], clahe: bool = False, norm_alg: int 
 
 
 # GET INTERPOLATED IMAGES FROM NUMPY ARRAYS
-def interpolate_volume(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
+def interpolate_imgs2vol(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
     """
     Create an interpolated volume from the image stack. This will interpolate slices of
     images between every consecutive pair of slices. The num_slices determines how
@@ -153,3 +153,146 @@ def interpolate_volume(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
                 stack[n * (num_slices + 1) + i + 1] = interp_slices[i]
             coords[:, 0] += 1
     return stack
+
+
+# GET INTERPOLATED IMAGES FROM DICOMS
+def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
+                        clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
+    """
+    Create an interpolated volume from the dicom list. This will interpolate slices of
+    images between every consecutive pair of slices. Number of slices between is based on
+    the DICOM header information, which will either have Spacing Between Slices or Slice
+    Location. Either way, we end up with a 1 mm spacing between each slice in the final
+    interpolated volume
+    :param dcm_list: list of pydicom.dataset.FileDataset
+    :return: the entire interpolated volume
+    """
+    if len(dcm_list) == 0:
+        return np.array([])
+
+    volume = np.array(get_png(dcm_list, clahe=clahe, norm_alg=norm_alg))
+    if len(volume.shape) != 3:
+        raise ValueError(f"volume must be of shape (depth, height, width), not {volume.shape}")
+
+    depth, img_width, img_height = volume.shape
+
+    # set up interpolator
+    points = (np.arange(depth), np.arange(img_height), np.arange(img_width))  # (z, y, x)
+    rgi = interpolate.RegularGridInterpolator(points, volume)
+
+    # check whether to use Spacing between slices, Slice Location or neither
+    method = None  # 0 = slice location,  1 = spacing between slices,  2 = not given
+    prev = None
+    n = 0
+    while n < depth:
+        d = dcm_list[n]
+        if hasattr(d, "SpacingBetweenSlices"):
+            if method == 0 or method == 2:
+                RuntimeError(f"""DICOM {n} does not utilize Spacing Between Slices. 
+                                 All DICOMS must use the same positioning technique""")
+            if prev is not None and prev != d.SpacingBetweenSlices:
+                RuntimeError(f"""DICOM {n} using Spacing Between Slices does not have the 
+                                 same spacing as previous ones.""")
+            elif prev is None:
+                prev = d.SpacingBetweenSlices
+            method = 1
+        elif hasattr(d, "SliceLocation"):
+            if method == 1 or method == 2:
+                RuntimeError(f"""DICOM {n} does not utilize Slice Location. 
+                                 All DICOMS must use the same positioning technique""")
+            method = 0
+        else:
+            if method == 0:
+                RuntimeError(f"""DICOM {n} utilizes Slice Location, but previous ones did not. 
+                                 All DICOMS must use the same positioning technique""")
+            if method == 1:
+                RuntimeError(f"""DICOM {n} utilizes Spacing Between Slices, but previous ones did not. 
+                                 All DICOMS must use the same positioning technique""")
+
+            method = 2
+        n += 1
+
+    print(method)
+    # solving the problem
+    if method == 2:
+        # Conduct interpolation with constant 4 slices between
+        # get slices with desired separation
+        g = np.mgrid[1:5, :img_height, :img_width]  # 4 slices between (5 - 1)
+        coords = np.vstack(map(np.ravel, g)).transpose().astype(np.float16)  # [z, y, x] between 2 slices
+        coords[:, 0] *= 1 / 5  # scale to be properly between the slices
+
+        # final interpolated volume but empty
+        stack = np.zeros((depth + 4 * (depth - 1), img_height, img_width), dtype=np.uint8)
+
+        for i in range(depth):
+            stack[i * 5] = volume[i]
+            print("SLICE NUMBER:", i + 1)
+            if i < depth - 1:
+                interp_slices = rgi(coords).reshape((4, img_height, img_width)).astype(np.uint8)
+                for j in range(4):
+                    stack[i * 5 + j + 1] = interp_slices[j]
+                coords[:, 0] += 1
+        return stack
+
+    elif method == 1:
+
+        num_slices = math.floor(dcm_list[0].SpacingBetweenSlices)
+
+        # final interpolated volume but empty
+        stack = np.zeros((depth + num_slices * (depth - 1), img_height, img_width), dtype=np.uint8)
+
+        # Conduct interpolation with spacing between slices. Is constant for one image sequence
+        # get slices with desired separation
+        g = np.mgrid[1:(num_slices + 1), :img_height, :img_width]  # 4 slices between (5 - 1)
+        coords = np.vstack(map(np.ravel, g)).transpose().astype(np.float16)  # [z, y, x] between 2 slices
+        coords[:, 0] *= 1 / (num_slices + 1)  # scale to be properly between the slices
+
+        for i in range(depth):
+            stack[i * (num_slices + 1)] = volume[i]
+            print("SLICE NUMBER:", i + 1)
+            if i < depth - 1:
+                interp_slices = rgi(coords).reshape((num_slices, img_height, img_width)).astype(np.uint8)
+                for j in range(num_slices):
+                    stack[i * (num_slices + 1) + j + 1] = interp_slices[j]
+                coords[:, 0] += 1
+        return stack
+
+    elif method == 0:
+        total_slices_between = 0
+
+        # get total number of slices inbetween
+        for i in range(depth):
+            d = dcm_list[i]
+            if i < depth - 1:
+                d2 = dcm_list[i + 1]
+                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation))
+                total_slices_between += num_slices
+        # final interpolated volume but empty
+        stack = np.zeros((depth + total_slices_between, img_height, img_width), dtype=np.uint8)
+
+        elapsed = 0
+        for i in range(depth):
+            print("SLICE NUMBER:", i + 1)
+            d = dcm_list[i]
+            if i < depth - 1:
+                d2 = dcm_list[i + 1]
+                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation))  # for 1 mm separation
+
+                stack[elapsed] = volume[i]
+                elapsed += 1
+
+                # get coords of interpolated points
+                g = np.mgrid[1:(num_slices + 1), :img_height, :img_width]
+                coords = np.vstack(map(np.ravel, g)).transpose().astype(np.float16)  # [z, y, x] between 2 slices
+                coords[:, 0] *= 1 / (num_slices + 1)  # scale to be properly between the slices
+                coords[:, 0] += i
+
+                interp_slices = rgi(coords).reshape((num_slices, img_height, img_width)).astype(np.uint8)
+                for j in range(num_slices):
+                    stack[elapsed] = interp_slices[j]
+                    elapsed += 1
+            else:
+                # cap off the stack with the last image
+                stack[-1] = volume[-1]
+
+        return stack

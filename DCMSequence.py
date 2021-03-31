@@ -6,7 +6,8 @@ import cv2
 import matplotlib.pyplot as plt
 from typing import Union, Tuple, List
 from preprocessing import apply_clahe, apply_fiji_normalization, \
-    apply_cr_normalization, convert_int_to_uint, interpolate_volume, get_png
+    apply_cr_normalization, convert_int_to_uint, interpolate_imgs2vol, \
+    interpolate_dcm2vol, get_png
 from PlotDCM import plot_comparisons, multi_slice_viewer
 
 def _get_new_ds(ds: pydicom.dataset.Dataset, name: str):
@@ -304,22 +305,18 @@ class DcmSequence:
             multi_slice_viewer(np.array(self.masks[start:end]))
 
 
-    def interpolate_dcm_volume(self, num_slices: int = 4, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
+    def interpolate(self, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
         images between every consecutive pair of slices. The num_slices determines how
         many interpolated slices are between the original slices and the separation between them.
-        :param num_slices: Number of interpolated slices between the original slices
         :param clahe: whether or not to perform clahe on the images
         :param norm_alg: which normalization algorithm to use to get the image between 0-255.
         If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
         normalization. norm_alg = 2 is for CR normalization.
         :return: the entire interpolated volume
         """
-        images = get_png(self.collection, clahe=clahe, norm_alg=norm_alg)
-        if num_slices == 0:
-            return images
-        stack = interpolate_volume(np.array(images), num_slices=num_slices)
+        stack = interpolate_dcm2vol(self.collection, clahe=clahe, norm_alg=norm_alg)
         return stack
 
 
@@ -334,7 +331,7 @@ class DcmSequence:
         :return: the entire interpolated volume
         """
         images = np.array(self.masks)
-        stack = interpolate_volume(images, num_slices=num_slices)
+        stack = interpolate_imgs2vol(images, num_slices=num_slices)
         if binarize:
             stack[stack < split_val] = 0
             stack[stack >= split_val] = 255
