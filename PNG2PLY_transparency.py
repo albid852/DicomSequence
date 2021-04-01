@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # build DcmSequence and load DICOMS
     dcms = DcmSequence()
     dcms.load_dcm(path)
-    images = dcms.interpolate_dcm_volume(num_slices=4)
+    images = dcms.interpolate()
 
     print("***** BEGINNING PLY CONVERSION *****")
 
