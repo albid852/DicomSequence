@@ -165,6 +165,10 @@ def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
     Location. Either way, we end up with a 1 mm spacing between each slice in the final
     interpolated volume
     :param dcm_list: list of pydicom.dataset.FileDataset
+    :param clahe: whether or not to perform clahe on the images
+    :param norm_alg: which normalization algorithm to use to get the image between 0-255.
+    If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
+    normalization. norm_alg = 2 is for CR normalization.
     :return: the entire interpolated volume
     """
     if len(dcm_list) == 0:

@@ -52,7 +52,6 @@ if __name__ == "__main__":
         maintain_aspect_ratio=True
     )
 
-    #
     print("***** VISUALIZNG PLY *****")
     # Visualizing Point Cloud
 
