@@ -305,18 +305,19 @@ class DcmSequence:
             multi_slice_viewer(np.array(self.masks[start:end]))
 
 
-    def interpolate(self, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
+    def interpolate(self, interp_factor: float, clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
         """
         Create an interpolated volume from the image stack. This will interpolate slices of
         images between every consecutive pair of slices. The num_slices determines how
         many interpolated slices are between the original slices and the separation between them.
+        :param interp_factor: interpolation factor
         :param clahe: whether or not to perform clahe on the images
         :param norm_alg: which normalization algorithm to use to get the image between 0-255.
         If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
         normalization. norm_alg = 2 is for CR normalization.
         :return: the entire interpolated volume
         """
-        stack = interpolate_dcm2vol(self.collection, clahe=clahe, norm_alg=norm_alg)
+        stack = interpolate_dcm2vol(self.collection, interp_factor, clahe=clahe, norm_alg=norm_alg)
         return stack
 
 

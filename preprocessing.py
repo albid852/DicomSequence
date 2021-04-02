@@ -157,6 +157,7 @@ def interpolate_imgs2vol(volume: np.ndarray, num_slices: int = 4) -> np.ndarray:
 
 # GET INTERPOLATED IMAGES FROM DICOMS
 def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
+                        interp_factor: float,
                         clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
     """
     Create an interpolated volume from the dicom list. This will interpolate slices of
@@ -165,6 +166,7 @@ def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
     Location. Either way, we end up with a 1 mm spacing between each slice in the final
     interpolated volume
     :param dcm_list: list of pydicom.dataset.FileDataset
+    :param interp_factor: factor of interpolation, divide the separation by this for method 0
     :param clahe: whether or not to perform clahe on the images
     :param norm_alg: which normalization algorithm to use to get the image between 0-255.
     If using clahe, recommended to set norm_alg = 0. norm_alg = 1 is for the fiji
@@ -216,7 +218,6 @@ def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
             method = 2
         n += 1
 
-    print(method)
     # solving the problem
     if method == 2:
         # Conduct interpolation with constant 4 slices between
@@ -269,7 +270,7 @@ def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
             d = dcm_list[i]
             if i < depth - 1:
                 d2 = dcm_list[i + 1]
-                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation))
+                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation) * interp_factor)
                 total_slices_between += num_slices
         # final interpolated volume but empty
         stack = np.zeros((depth + total_slices_between, img_height, img_width), dtype=np.uint8)
@@ -280,7 +281,7 @@ def interpolate_dcm2vol(dcm_list: List[pydicom.dataset.FileDataset],
             d = dcm_list[i]
             if i < depth - 1:
                 d2 = dcm_list[i + 1]
-                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation))  # for 1 mm separation
+                num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation) * interp_factor)  # for 1 mm separation
 
                 stack[elapsed] = volume[i]
                 elapsed += 1
