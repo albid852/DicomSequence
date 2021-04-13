@@ -71,9 +71,7 @@ def apply_cr_normalization(img: np.ndarray) -> np.ndarray:
 
 # RESIZE PNG
 def resize(img_list: List[np.ndarray], dsize: Tuple[int, int]) -> List[np.ndarray]:
-    for i in range(len(img_list)):
-        img_list[i] = cv2.resize(img_list[i], dsize)
-    return img_list
+    return [cv2.resize(img, dsize) for img in img_list]
 
 
 # GET PNG LIST FROM DICOMS

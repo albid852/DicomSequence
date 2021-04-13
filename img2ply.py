@@ -24,6 +24,7 @@ import time
 import fileinput
 from PIL import Image
 import numpy as np
+import os
 
 # ----------------------------------------------------------------------------
 
@@ -80,8 +81,8 @@ def getPositionMapper(direction):
     # build mapper
     return order
 
-def getImageData(img, ignore_alpha=True, w_samples=0,
-                 h_samples=0, reduce_factor=1, maintain_aspect_ratio=True):
+def getImageData(img, threshold=25, ignore_alpha=True, w_samples=0,
+                 h_samples=0, maintain_aspect_ratio=True):
     """
     Read the image and resize it based on the sample arguments, if the sample
     arguments are not set every pixel will be processed. When maintaining the
@@ -97,7 +98,7 @@ def getImageData(img, ignore_alpha=True, w_samples=0,
     """
 
     # Rewriting image to have an Alpha Value
-    img_gray= Image.fromarray(img, mode='L')
+    img_gray = Image.fromarray(img, mode='L')
     imgRGB = img_gray.convert('RGB')
     imgRGB.putalpha(img_gray)
     image = imgRGB.convert('RGBA')
@@ -122,15 +123,13 @@ def getImageData(img, ignore_alpha=True, w_samples=0,
 
     # resize image
     image.thumbnail((w_samples, h_samples), Image.ANTIALIAS)
-    # image_arr = np.asarray(image)[::reduce_factor, ::reduce_factor]
-    # image = Image.fromarray(image_arr, mode='RGBA')
 
     # loop pixels
     for x in range(image.size[0]):
         for y in range(image.size[0]):
             r, g, b, a = image.getpixel((x, y))
 
-            if a < 25 and ignore_alpha:
+            if a < threshold and ignore_alpha:
                 continue
 
             data.append(([x / float(w_samples), y / float(h_samples)], [r, g, b]))
@@ -147,8 +146,9 @@ def divider():
 def convert(
         images, ply, bb,
         direction="z", inverse=False,
+        threshold=25,
         ignore_alpha=True,
-        w_samples=0, h_samples=0, reduce_factor=1,
+        w_samples=0, h_samples=0,
         maintain_aspect_ratio=True):
     """
     Read the input directory and find all of the images of the supported file
@@ -171,6 +171,7 @@ def convert(
     :param bool ignore_alpha: Skip pixel is alpha is < 25
     :param int w_samples: Number of width sample points
     :param int h_samples: Number of height sample points
+    :param reduce_factor:
     :param maintain_aspect_ratio:
     """
     # variables
@@ -218,10 +219,10 @@ def convert(
             # process image
             data = getImageData(
                 images[i],
+                threshold=threshold,
                 ignore_alpha=ignore_alpha,
                 w_samples=w_samples,
                 h_samples=h_samples,
-                reduce_factor=reduce_factor,
                 maintain_aspect_ratio=maintain_aspect_ratio
             )
 
@@ -259,3 +260,46 @@ def convert(
     divider()
     print("Output:          {0}".format(ply))
     print("Duration:        {0} min".format(round(diff / 60, 1)))
+
+# ----------------------------------------------------------------------------
+
+def generate_ply(images: np.ndarray, path: str) -> str:
+    '''
+    Generate a PLY file from 3D array of images. Return the path of the ply file.
+    :param images: 3D numpy array of images
+    :param path: path to save PLY file
+    :return: str the path of the PLY file
+    '''
+    print("***** BEGINNING PLY CONVERSION *****")
+
+    # Giving writing permissions
+    os.chmod(path, 0o777)
+
+    ply_dir = os.path.join(path, "DCMPLY")
+    if not os.path.exists(ply_dir):
+        os.mkdir(ply_dir)
+    ply_path = os.path.join(ply_dir, "generated.ply")
+
+    # get dimensions of PLY (assuming all the same height and width)
+    depth = images.shape[0]
+    height = images.shape[1]
+    width = images.shape[2]
+    print(f"Dimensions (h, w, d) of Bounding Box: "
+          f"({height}, {width}, {depth})")
+
+    # convert
+    # THE BOUNDING BOX has to be [Width, Height, Number of Slices]
+    convert(
+        images,
+        ply_path,
+        [width, height, 273],
+        # [width, height, SliceNumber],
+        direction="z",
+        inverse=True,
+        threshold=25,
+        ignore_alpha=True,
+        w_samples=0,
+        h_samples=0,
+        maintain_aspect_ratio=True
+    )
+    return ply_path
