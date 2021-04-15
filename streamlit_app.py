@@ -14,7 +14,6 @@ from typing import List
 import math
 from img2ply import generate_ply
 
-
 @st.cache(suppress_st_warning=True, show_spinner=False)
 def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
                        interp_factor: float,
@@ -164,6 +163,19 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
 
 
 
+def threshold_images(imgs: List[np.ndarray], threshold: int):
+    """
+    Whiten pixels in the grayscale images by applying a threshold. All pixels below
+    threshold intensity will become white
+    :param imgs: list of images
+    :param threshold: threshold value
+    """
+    img_arr = np.array(imgs)
+    new_imgs = img_arr.copy()
+    for i in range(len(imgs)):
+        new_imgs[i][np.where(new_imgs[i] < threshold)] = 255
+    return new_imgs
+
 def get_image_download_link(vol: np.ndarray) -> str:
     """
     Generates a link that allows the png image or volume to be downloaded in a zip file
@@ -196,8 +208,6 @@ dcms = DcmSequence()
 password = "Raveen is Notion Ambassador"
 password_text = st.text_input('Input Password', type='password')
 
-# I don't think there is way to remove the password box after the correct password as been inputed due to the
-# limitations of streamlit
 if password != password_text:
     if password_text:
         st.warning("Incorrect Password")
@@ -211,14 +221,16 @@ else:
             dcms.collection.append(ds)
             dcms.dcm_files.append(file.name)
         # option to sort by file name only if we got more than 1 image
-        sort = st.checkbox("Sort by file name")
+        sortcol1, sortcol2 = st.beta_columns((2, 7))
+        sort = sortcol1.button("Sort by file name")
         if sort:
             dcms.sort_dcm()
             dcms.sort_mask()
+            sortcol2.success("DICOMS sorted!")
 
         # get png images
         filenames, img_list = dcms.get_png()
-
+        display_imgs = img_list
 
         # set size of images with these sidebar sliders
         st.sidebar.title("Set Image Size")
@@ -227,24 +239,47 @@ else:
         hw_check = st.sidebar.selectbox("Set Height and Width or Size?",
                                         options=options,
                                         format_func=lambda x: display[x])
+        col_width = 3
         if hw_check:
             height_slide = st.sidebar.slider("Set Width", 1, 512, value=img_list[0].shape[1])
             width_slide = st.sidebar.slider("Set Height", 1, 512, value=img_list[0].shape[0])
             img_list = resize(img_list, (height_slide, width_slide))
             dcms.resize((width_slide, height_slide))
+            if width_slide >= 450:
+                col_width = 3
+            elif width_slide >= 350:
+                col_width = 2
+            else:
+                col_width = 1
 
         else:
             size_slide = st.sidebar.slider("Set Image Size", 1, 512, value=img_list[0].shape[0])
             img_list = resize(img_list, (size_slide, size_slide))
             dcms.resize((size_slide, size_slide))
+            if size_slide >= 450:
+                col_width = 3
+            elif size_slide >= 350:
+                col_width = 2
+            else:
+                col_width = 1
 
         if len(img_list) > 1:
             # scroll through png images (not interpolated)
-            slide = st.slider("Dicom Image", 1, len(img_list))
-            st.image(img_list[slide - 1])
+            st.header("Images")
+            imgcol1, imgcol2 = st.beta_columns((col_width, 1))
 
-            name = st.text(f"File name: {filenames[slide - 1]}")
-            #
+            slide = imgcol2.slider("Dicom Image", 1, len(img_list))
+            thresh_slide = imgcol2.slider("Threshold Value", 0, 255)
+
+            if thresh_slide > 0:
+                thresh_img_list = threshold_images(img_list, thresh_slide)
+                display_imgs = thresh_img_list
+            else:
+                display_imgs = img_list
+
+            imgcol1.image(display_imgs[slide - 1])
+            name = imgcol1.text(f"File name: {filenames[slide - 1]}")
+
             # # plotting the normalizations available (fiji, clahe, and CR)
             # norm_check = st.sidebar.checkbox("Visualize normalizations")
             # if norm_check:
@@ -259,30 +294,44 @@ else:
             #     st.pyplot(plot_comp2fiji(img_list[slide - 1]))
 
             # interpolate volume
-            interp_check = st.checkbox("Interpolate Volume")
-            if interp_check:
-                st.header("Interpolation")
-                n = st.number_input("Interpolation factor", 0., 1., value=0., step=0.01)
+            st.header("Interpolation")
+            interpcol1, interpcol2 = st.beta_columns((col_width, 1))
 
-                with st.spinner("Interpolating..."):
-                    dcm_vol = interpolate_volume(dcms.collection, interp_factor=n)
-                st.success("Successfully Interpolated!")
+            n = interpcol2.number_input("Interpolation factor",
+                                        0., 1., value=0., step=0.01)
 
-                slide2 = st.slider("Interpolated Image", 1, len(dcm_vol))
-                st.image(dcm_vol[slide2 - 1])  # can use css to center this
+            with st.spinner("Interpolating..."):
+                dcm_vol = interpolate_volume(dcms.collection, interp_factor=n)
 
-                if st.button("Download"):
-                    with st.spinner("Getting your link ready..."):
-                        st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
-                    st.success("Click the link to download your images!")
+            slide2 = interpcol2.slider("Interpolated Image", 1, len(dcm_vol))
 
-                # ply_check = st.checkbox("Generate Point Cloud")
+            interpcol1.image(dcm_vol[slide2 - 1])
+
+            if st.button("Download"):
+                with st.spinner("Getting your link ready..."):
+                    st.markdown(get_image_download_link(dcm_vol), unsafe_allow_html=True)
+                st.success("Click the link to download your images!")
+
+            # ply_check = st.checkbox("Generate Point Cloud")
 
 
         else:
-            st.image(img_list[0])
-            name = st.text(f"File name: {filenames[0]}")
+            # scroll through png images (not interpolated)
+            st.header("Images")
+            imgcol1, imgcol2 = st.beta_columns((col_width, 1))
+
+            thresh_slide = imgcol2.slider("Threshold Value", 0, 255)
+
+            if thresh_slide > 0:
+                thresh_img_list = threshold_images(img_list, thresh_slide)
+                display_imgs = thresh_img_list
+            else:
+                display_imgs = img_list
+
+            imgcol1.image(display_imgs[0])
+            name = imgcol1.text(f"File name: {filenames[0]}")
+
             if st.button("Download"):
                 with st.spinner("Getting your link ready..."):
-                    st.markdown(get_image_download_link(np.array(img_list)), unsafe_allow_html=True)
+                    st.markdown(get_image_download_link(np.array(display_imgs)), unsafe_allow_html=True)
                 st.success("Click the link to download your images!")
