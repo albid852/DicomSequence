@@ -8,7 +8,6 @@ from PIL import Image
 from io import BytesIO
 from scipy import interpolate
 from preprocessing import get_png, resize
-from PlotDCM import plot_comp2fiji
 from DCMSequence import DcmSequence
 from typing import List
 import math
@@ -16,6 +15,7 @@ from img2ply import generate_ply
 
 @st.cache(suppress_st_warning=True, show_spinner=False)
 def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
+                       img_list: List[np.ndarray],
                        interp_factor: float,
                        clahe: bool = False, norm_alg: int = 1) -> np.ndarray:
     """
@@ -43,7 +43,7 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
 
     # set up interpolator
     points = (np.arange(depth), np.arange(img_height), np.arange(img_width))  # (z, y, x)
-    rgi = interpolate.RegularGridInterpolator(points, volume)
+    rgi = interpolate.RegularGridInterpolator(points, img_list)
 
     # check whether to use Spacing between slices, Slice Location or neither
     method = None  # 0 = slice location,  1 = spacing between slices,  2 = not given
@@ -77,7 +77,6 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
             method = 2
         n += 1
 
-    # solving the problem
     if method == 2:
         # Conduct interpolation with constant 4 slices between
         # get slices with desired separation
@@ -89,7 +88,7 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
         stack = np.zeros((depth + 4 * (depth - 1), img_height, img_width), dtype=np.uint8)
 
         for i in range(depth):
-            stack[i * 5] = volume[i]
+            stack[i * 5] = img_list[i]
             print("SLICE NUMBER:", i + 1)
             if i < depth - 1:
                 interp_slices = rgi(coords).reshape((4, img_height, img_width)).astype(np.uint8)
@@ -112,7 +111,7 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
         coords[:, 0] *= 1 / (num_slices + 1)  # scale to be properly between the slices
 
         for i in range(depth):
-            stack[i * (num_slices + 1)] = volume[i]
+            stack[i * (num_slices + 1)] = img_list[i]
             print("SLICE NUMBER:", i + 1)
             if i < depth - 1:
                 interp_slices = rgi(coords).reshape((num_slices, img_height, img_width)).astype(np.uint8)
@@ -142,7 +141,7 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
                 d2 = dcm_list[i + 1]
                 num_slices = math.floor(abs(d.SliceLocation - d2.SliceLocation) * interp_factor)  # for 1 mm separation
 
-                stack[elapsed] = volume[i]
+                stack[elapsed] = img_list[i]
                 elapsed += 1
 
                 # get coords of interpolated points
@@ -161,8 +160,7 @@ def interpolate_volume(dcm_list: List[pydicom.dataset.FileDataset],
 
         return stack
 
-
-
+@st.cache(suppress_st_warning=True, show_spinner=False)
 def threshold_images(imgs: List[np.ndarray], threshold: int):
     """
     Whiten pixels in the grayscale images by applying a threshold. All pixels below
@@ -176,6 +174,7 @@ def threshold_images(imgs: List[np.ndarray], threshold: int):
         new_imgs[i][np.where(new_imgs[i] < threshold)] = 255
     return new_imgs
 
+@st.cache(suppress_st_warning=True, show_spinner=False)
 def get_image_download_link(vol: np.ndarray) -> str:
     """
     Generates a link that allows the png image or volume to be downloaded in a zip file
@@ -202,16 +201,16 @@ def get_image_download_link(vol: np.ndarray) -> str:
 st.set_page_config("Pydicom Image")
 st.title("Pydicom Image")
 
-dcms = DcmSequence()
-
 # password
-password = "Raveen is Notion Ambassador"
+password = "BelugaWhales227"
 password_text = st.text_input('Input Password', type='password')
 
 if password != password_text:
     if password_text:
         st.warning("Incorrect Password")
+
 else:
+    dcms = DcmSequence()
     # upload files
     uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='dcm')
     if len(uploaded_file) > 0:
@@ -280,28 +279,16 @@ else:
             imgcol1.image(display_imgs[slide - 1])
             name = imgcol1.text(f"File name: {filenames[slide - 1]}")
 
-            # # plotting the normalizations available (fiji, clahe, and CR)
-            # norm_check = st.sidebar.checkbox("Visualize normalizations")
-            # if norm_check:
-            #     normalizer = st.sidebar.selectbox("Normalizing Options",
-            #                                       ["Original", "CR", "CLAHE"])
-            #     if normalizer == "CLAHE":
-            #         grid_size = st.sidebar.number_input("Grid Size", 4, 32, step=4)
-            #         clip_limit = st.sidebar.number_input("Clip Limit", 10, 60, step=5)
-            #         clahe_img_list =
-            #
-            #     print(img_list[slide - 1].shape)
-            #     st.pyplot(plot_comp2fiji(img_list[slide - 1]))
-
             # interpolate volume
             st.header("Interpolation")
             interpcol1, interpcol2 = st.beta_columns((col_width, 1))
 
-            n = interpcol2.number_input("Interpolation factor",
-                                        0., 1., value=0., step=0.01)
+            n = interpcol2.slider("Interpolation factor",
+                                  0., 1., value=0., step=0.01)
 
             with st.spinner("Interpolating..."):
-                dcm_vol = interpolate_volume(dcms.collection, interp_factor=n)
+                dcm_vol = interpolate_volume(dcms.collection, display_imgs,
+                                             interp_factor=n)
 
             slide2 = interpcol2.slider("Interpolated Image", 1, len(dcm_vol))
 
